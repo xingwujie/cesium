@@ -35,6 +35,8 @@ define([
 
         this.initialSize = initialSize;
         this.sizeVariance = Cartesian2.clone(defaultValue(options.sizeVariance, Cartesian2.ZERO));
+
+        this.maximumToEmit = defaultValue(options.maximumToEmit, Number.MAX_VALUE);
     };
 
     function random(a, b) {
@@ -43,7 +45,7 @@ define([
 
     PointEmitter.prototype.emit = function(system) {
         var particles = system.particles;
-        var numToEmit = system.maximumParticles - particles.length;
+        var numToEmit = Math.min(this.maximumToEmit, system.maximumParticles - particles.length);
 
         for (var i = 0; i < numToEmit; ++i) {
             var velocity = Cartesian3.clone(this.initialDirection);

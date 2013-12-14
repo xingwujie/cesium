@@ -20,7 +20,7 @@ define([
         this.forces = defaultValue(options.forces, []);
         this.emitter = options.emitter;
         this.modelMatrix = Matrix4.clone(defaultValue(options.modelMatrix, Matrix4.IDENTITY));
-        this.maximumParticles = 1000.0;
+        this.maximumParticles = defaultValue(options.maximumParticles, 1000.0);
 
         this._billboardCollection = undefined;
     };

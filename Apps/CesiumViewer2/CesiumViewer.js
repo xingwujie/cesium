@@ -166,18 +166,30 @@ define([
             Cartesian3.add(gravitationalForce, particle.velocity, particle.velocity);
         }
         
+		var collision = function(particle) {
+			if (particle.position.z > 0) {
+				return;
+			}
+
+			particle.position.z = -particle.position.z;
+			particle.velocity.z = -particle.velocity.z;
+		}
+        
         var emitter = new PointEmitter({
             initialDirection : Cartesian3.UNIT_Z,
             directionVariance : new Cartesian3(0.5, 0.5, 0.0),
-            initialSpeed : 2500.0,
+            initialSpeed : 2000.0,
+            speedVariance : 500.0,
             initialLife : 500.0,
             lifeVariance : 200.0,
-            initialSize : new Cartesian2(size, size)
+            initialSize : new Cartesian2(size, size),
+            maximumToEmit : 100.0,
         });
         var system = new ParticleSystem({
             emitter : emitter,
-            forces : [gravity],
-            modelMatrix : transform
+            forces : [gravity, collision],
+            modelMatrix : transform,
+            maximumParticles : 2500.0
         });
         
         scene.getPrimitives().add(system);

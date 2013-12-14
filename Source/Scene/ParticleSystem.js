@@ -34,6 +34,8 @@ define([
         if (!defined(billboard)) {
             billboard = particle._billboard = system._billboardCollection.add();
             billboard.setImageIndex(0);
+            billboard.setWidth(particle.size.x);
+            billboard.setHeight(particle.size.y);
         }
 
         billboard.setPosition(particle.position);

@@ -1,6 +1,5 @@
 /*global define*/
 define([
-        '../../Core/Cartesian2',
         '../../Core/defaultValue',
         '../../Core/defined',
         '../../Core/DeveloperError',
@@ -9,7 +8,6 @@ define([
         '../../Core/Event',
         '../../Core/EventHelper',
         '../../Core/requestAnimationFrame',
-        '../../Core/ScreenSpaceEventType',
         '../../DynamicScene/DataSourceCollection',
         '../../DynamicScene/DataSourceDisplay',
         '../Animation/Animation',
@@ -24,10 +22,8 @@ define([
         '../subscribeAndEvaluate',
         '../HomeButton/HomeButton',
         '../SceneModePicker/SceneModePicker',
-        '../Timeline/Timeline',
-        '../../ThirdParty/knockout'
+        '../Timeline/Timeline'
     ], function(
-        Cartesian2,
         defaultValue,
         defined,
         DeveloperError,
@@ -36,7 +32,6 @@ define([
         Event,
         EventHelper,
         requestAnimationFrame,
-        ScreenSpaceEventType,
         DataSourceCollection,
         DataSourceDisplay,
         Animation,
@@ -51,8 +46,7 @@ define([
         subscribeAndEvaluate,
         HomeButton,
         SceneModePicker,
-        Timeline,
-        knockout) {
+        Timeline) {
     "use strict";
 
     function onTimelineScrubfunction(e) {
@@ -219,6 +213,7 @@ Either specify options.imageryProvider instead or set options.baseLayerPicker to
 
         var clock = cesiumWidget.clock;
         var clockViewModel = new ClockViewModel(clock);
+        var eventHelper = new EventHelper();
 
         var toolbar = document.createElement('div');
         toolbar.className = 'cesium-viewer-toolbar';
@@ -241,6 +236,15 @@ Either specify options.imageryProvider instead or set options.baseLayerPicker to
         var homeButton;
         if (!defined(options.homeButton) || options.homeButton !== false) {
             homeButton = new HomeButton(toolbar, cesiumWidget.scene, cesiumWidget.sceneTransitioner, cesiumWidget.centralBody.getEllipsoid());
+            if (defined(geocoder)) {
+                eventHelper.add(homeButton.viewModel.command.afterExecute, function() {
+                    var viewModel = geocoder.viewModel;
+                    viewModel.searchText = '';
+                    if (viewModel.isSearchInProgress) {
+                        viewModel.search();
+                    }
+                });
+            }
         }
 
         //SceneModePicker
@@ -301,8 +305,6 @@ Either specify options.imageryProvider instead or set options.baseLayerPicker to
         } else if (defined(timeline)) {
             timeline.container.style.right = 0;
         }
-
-        var eventHelper = new EventHelper();
 
         function updateDataSourceDisplay(clock) {
             dataSourceDisplay.update(clock.currentTime);

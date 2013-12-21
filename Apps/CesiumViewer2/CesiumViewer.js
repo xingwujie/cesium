@@ -154,18 +154,18 @@ define([
                 console.error(error);
             }
         }
-        
+
         var ellipsoid = Ellipsoid.WGS84;
         var center = ellipsoid.cartographicToCartesian(Cartographic.fromDegrees(-75.59777, 40.03883, 500000.0));
         var transform = Transforms.eastNorthUpToFixedFrame(center);
-        
+
         var size = 5.0;
-        
+
         var gravity = function(particle) {
             var gravitationalForce = Cartesian3.multiplyByScalar(Cartesian3.UNIT_Z, -9.8 * particle.mass);
             Cartesian3.add(gravitationalForce, particle.velocity, particle.velocity);
-        }
-        
+        };
+
 		var collision = function(particle) {
 			if (particle.position.z > 0) {
 				return;
@@ -173,8 +173,8 @@ define([
 
 			particle.position.z = -particle.position.z;
 			particle.velocity.z = -particle.velocity.z;
-		}
-        
+		};
+
         var emitter = new PointEmitter({
             initialDirection : Cartesian3.UNIT_Z,
             directionVariance : new Cartesian3(0.5, 0.5, 0.0),
@@ -183,7 +183,7 @@ define([
             initialLife : 500.0,
             lifeVariance : 200.0,
             initialSize : new Cartesian2(size, size),
-            maximumToEmit : 100.0,
+            maximumToEmit : 100.0
         });
         var system = new ParticleSystem({
             emitter : emitter,
@@ -191,14 +191,14 @@ define([
             modelMatrix : transform,
             maximumParticles : 2500.0
         });
-        
+
         scene.getPrimitives().add(system);
-        
+
         var eye = new Cartesian3(500000.0, 0.0, 500000.0);
         var target = Cartesian3.ZERO;
         var up = Cartesian3.cross(Cartesian3.UNIT_Z, eye);
         Cartesian3.cross(eye, up, up);
-        
+
         scene.getCamera().transform = transform;
         scene.getCamera().controller.lookAt(eye, target, up);
         scene.getScreenSpaceCameraController().setEllipsoid(Ellipsoid.UNIT_SPHERE);

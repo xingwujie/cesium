@@ -34,6 +34,11 @@ function setFilter(scene, filter, uniforms) {
 var widget = new Cesium.CesiumWidget('cesiumContainer');
 var scene = widget.scene;
 
+// Filters are currently incompatible with OIT
+scene._oit.isSupported = function() {
+    return false;
+};
+
 setFilter(scene, Cesium._shaders.PassThrough);
 
 Sandcastle.addToolbarButton('Lomo Filter', function() {

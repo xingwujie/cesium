@@ -31,13 +31,20 @@ function setFilter(scene, filter, uniforms) {
     scene.customPostProcess = new Cesium.CustomPostProcess(filter, uniforms);
 }
 
-var widget = new Cesium.CesiumWidget('cesiumContainer');
+var widget = new Cesium.CesiumWidget('cesiumContainer', {
+    orderIndependentTranslucency : false
+});
 var scene = widget.scene;
+scene.fxaa = true;
 
-// Filters are currently incompatible with OIT
-scene._oit.isSupported = function() {
-    return false;
-};
+var polygon = scene.primitives.add(new Cesium.Polygon({
+    positions : Cesium.Cartesian3.fromDegreesArray([
+         -72.0, 40.0,
+         -70.0, 35.0,
+         -75.0, 30.0,
+         -70.0, 30.0,
+         -68.0, 40.0])
+}));
 
 setFilter(scene, Cesium._shaders.PassThrough);
 

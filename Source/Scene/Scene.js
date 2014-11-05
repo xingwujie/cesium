@@ -48,7 +48,6 @@ define([
         './SceneTransitioner',
         './ScreenSpaceCameraController',
         './SunPostProcess',
-        './CustomPostProcess',
         './TweenCollection'
     ], function(
         BoundingRectangle,
@@ -99,7 +98,6 @@ define([
         SceneTransitioner,
         ScreenSpaceCameraController,
         SunPostProcess,
-        CustomPostProcess,
         TweenCollection) {
     "use strict";
 
@@ -1203,6 +1201,12 @@ define([
             useOIT = useOIT && scene._oit.isSupported();
         }
 
+        var useCPP = defined(scene.customPostProcess);
+        if (useCPP) {
+            scene.customPostProcess.update(context);
+            scene.customPostProcess.clear(context, passState, clearColor);
+        }
+
         var useFXAA = !picking && (scene.fxaa || (useOIT && scene.fxaaOrderIndependentTranslucency));
         if (useFXAA) {
             scene._fxaa.update(context);
@@ -1212,6 +1216,8 @@ define([
         var opaqueFramebuffer = passState.framebuffer;
         if (useOIT) {
             opaqueFramebuffer = scene._oit.getColorFramebuffer();
+        } else if (useCPP) {
+            opaqueFramebuffer = scene.customPostProcess.getColorFramebuffer();
         } else if (useFXAA) {
             opaqueFramebuffer = scene._fxaa.getColorFramebuffer();
         }
@@ -1287,8 +1293,13 @@ define([
         }
 
         if (useOIT) {
-            passState.framebuffer = useFXAA ? scene._fxaa.getColorFramebuffer() : undefined;
+            passState.framebuffer = useCPP ? scene.customPostProcess.getColorFramebuffer() : (useFXAA ? scene._fxaa.getColorFramebuffer() : undefined);
             scene._oit.execute(context, passState);
+        }
+
+        if (useCPP) {
+            passState.framebuffer = useFXAA ? scene._fxaa.getColorFramebuffer() : undefined;
+            scene.customPostProcess.execute(context, passState);
         }
 
         if (useFXAA) {
@@ -1373,19 +1384,7 @@ define([
 
         var passState = scene._passState;
 
-        // HOOK: Post process external filter.
-        if (defined(scene.customPostProcess)) {
-            passState.framebuffer = scene.customPostProcess.update(context);
-            scene.sun = undefined; // Disable the sun to avoid conflict with post processing.
-        } // END HOOK.
-
         executeCommands(scene, passState, defaultValue(scene.backgroundColor, Color.BLACK));
-
-        // HOOK: Post process external filter.
-        if (defined(scene.customPostProcess)) {
-            scene.customPostProcess.execute(context);
-        } // END HOOK.
-
         executeOverlayCommands(scene, passState);
 
         frameState.creditDisplay.endFrame();
@@ -1731,6 +1730,7 @@ define([
         this._debugSphere = this._debugSphere && this._debugSphere.destroy();
         this.sun = this.sun && this.sun.destroy();
         this._sunPostProcess = this._sunPostProcess && this._sunPostProcess.destroy();
+        this.customPostProcess = this.customPostProcess && this.customPostProcess.destroy();
 
         this._transitioner.destroy();
 

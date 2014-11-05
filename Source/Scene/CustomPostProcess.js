@@ -1,244 +1,156 @@
 /*global define*/
 define([
         '../Core/Cartesian2',
-        '../Core/ComponentDatatype',
-        '../Core/defaultValue',
+        '../Core/Color',
         '../Core/defined',
         '../Core/destroyObject',
-        '../Core/Geometry',
-        '../Core/GeometryAttribute',
-        '../Core/PrimitiveType',
-        '../Renderer/BufferUsage',
-        '../Renderer/DrawCommand',
-        '../Renderer/PixelDatatype',
         '../Core/PixelFormat',
-        '../Renderer/RenderbufferFormat',
-        '../Scene/BlendingState',
-        '../Shaders/PostProcessFilters/PassThrough',
-        '../Shaders/ViewportQuadVS'
+        '../Renderer/ClearCommand',
+        '../Renderer/PixelDatatype',
+        '../Renderer/RenderbufferFormat'
     ], function(
         Cartesian2,
-        ComponentDatatype,
-        defaultValue,
+        Color,
         defined,
         destroyObject,
-        Geometry,
-        GeometryAttribute,
-        PrimitiveType,
-        BufferUsage,
-        DrawCommand,
-        PixelDatatype,
         PixelFormat,
-        RenderbufferFormat,
-        BlendingState,
-        PassThrough,
-        ViewportQuadVS) {
+        ClearCommand,
+        PixelDatatype,
+        RenderbufferFormat) {
     "use strict";
 
     /**
-     * Sets up a custom post process using the given post process filter.
-     *
-     * @alias CustomPostProcess
-     * @constructor
-     *
-     * @param {Object} [filter=PassThrough] The post-process filter to be used.
-     * @param {Object} [customUniforms={}] Any custom uniforms used in the filter must be passed as functions returning the value in <code>customUnforms</code>.
+     * @private
      */
-    var CustomPostProcess = function(filter, customUniforms) {
-        this._filterCommand = undefined;
-
-        this._colorTexture = undefined;
+    var CustomPostProcess = function(shader, uniforms) {
+        this._texture = undefined;
         this._depthTexture = undefined;
         this._depthRenderbuffer = undefined;
+        this._fbo = undefined;
+        this._command = undefined;
+        this._fragmentShader = shader;
+        this._customUniforms = uniforms;
 
-        this._colorStep = new Cartesian2();
-
-        this._customUniforms = defaultValue(customUniforms, {});
-
-        this.framebuffer = undefined;
-        // Set the filter if it is defined otherwise, use passthrough filter.
-        this.postProcessFilter = defaultValue(filter, PassThrough);
+        var clearCommand = new ClearCommand({
+            color : new Color(0.0, 0.0, 0.0, 0.0),
+            depth : 1.0,
+            owner : this
+        });
+        this._clearCommand = clearCommand;
     };
 
-    /**
-     * Executes the filter command.
-     *
-     * @memberof CustomPostProcess
-     *
-     * @param {Context} Specifies the context where the filter is being applied.
-     */
-    CustomPostProcess.prototype.execute = function(context) {
-        this._filterCommand.execute(context);
-    };
+    function destroyResources(cpp) {
+        cpp._fbo = cpp._fbo && cpp._fbo.destroy();
+        cpp._texture = cpp._texture && cpp._texture.destroy();
+        cpp._depthTexture = cpp._depthTexture && cpp._depthTexture.destroy();
+        cpp._depthRenderbuffer = cpp._depthRenderbuffer && cpp._depthRenderbuffer.destroy();
 
-    var attributeIndices = {
-        position : 0,
-        textureCoordinates : 1
-    };
+        cpp._fbo = undefined;
+        cpp._texture = undefined;
+        cpp._depthTexture = undefined;
+        cpp._depthRenderbuffer = undefined;
 
-    function getVertexArray(context) {
-        // Per-context cache for viewport quads
-        var vertexArray = context.cache.viewportQuad_vertexArray;
-
-        if (defined(vertexArray)) {
-            return vertexArray;
+        if (defined(cpp._command)) {
+            cpp._command.shaderProgram = cpp._command.shaderProgram && cpp._command.shaderProgram.destroy();
+            cpp._command = undefined;
         }
-
-        var geometry = new Geometry({
-            attributes : {
-                position : new GeometryAttribute({
-                    componentDatatype : ComponentDatatype.FLOAT,
-                    componentsPerAttribute : 2,
-                    values : [
-                       -1.0, -1.0,
-                        1.0, -1.0,
-                        1.0,  1.0,
-                       -1.0,  1.0
-                    ]
-                }),
-
-                textureCoordinates : new GeometryAttribute({
-                    componentDatatype : ComponentDatatype.FLOAT,
-                    componentsPerAttribute : 2,
-                    values : [
-                        0.0, 0.0,
-                        1.0, 0.0,
-                        1.0, 1.0,
-                        0.0, 1.0
-                    ]
-                })
-            },
-            indices : [0, 1, 2, 0, 2, 3],
-            primitiveType : PrimitiveType.TRIANGLES
-        });
-
-        vertexArray = context.createVertexArrayFromGeometry({
-            geometry : geometry,
-            attributeIndices : attributeIndices,
-            bufferUsage : BufferUsage.STATIC_DRAW
-        });
-
-        context.cache.viewportQuad_vertexArray = vertexArray;
-        return vertexArray;
     }
 
-    /**
-     * Updates the filter and framebuffer attributes if required.
-     *
-     * @memberof CustomPostProcess
-     *
-     * @param {Context} Specifies the context where the filter is being applied.
-     */
     CustomPostProcess.prototype.update = function(context) {
         var width = context.drawingBufferWidth;
         var height = context.drawingBufferHeight;
 
-        var that = this;
+        var fxaaTexture = this._texture;
+        var textureChanged = !defined(fxaaTexture) || fxaaTexture.width !== width || fxaaTexture.height !== height;
+        if (textureChanged) {
+            this._texture = this._texture && this._texture.destroy();
+            this._depthTexture = this._depthTexture && this._depthTexture.destroy();
+            this._depthRenderbuffer = this._depthRenderbuffer && this._depthRenderbuffer.destroy();
 
-        // Setup the framebuffer if not defined, and the colortexture.
-        if (!defined(this.framebuffer) ||
-                this.framebuffer.getColorTexture(0).width !== width ||
-                this.framebuffer.getColorTexture(0).height !== height ) {
-//            this.freeResources();
-
-            var colorTexture = context.createTexture2D({
+            this._texture = context.createTexture2D({
                 width : width,
-                height : height
+                height : height,
+                pixelFormat : PixelFormat.RGBA,
+                pixelDatatype : PixelDatatype.UNSIGNED_BYTE
             });
 
-            var depthTexture;
-            var depthRenderbuffer;
-
             if (context.depthTexture) {
-                depthTexture = context.createTexture2D({
+                this._depthTexture = context.createTexture2D({
                     width : width,
                     height : height,
                     pixelFormat : PixelFormat.DEPTH_COMPONENT,
                     pixelDatatype : PixelDatatype.UNSIGNED_SHORT
                 });
             } else {
-                depthRenderbuffer = context.createRenderbuffer({
+                this._depthRenderbuffer = context.createRenderbuffer({
+                    width : width,
+                    height : height,
                     format : RenderbufferFormat.DEPTH_COMPONENT16
                 });
             }
-
-            // Only depthTexture or depthRenderbuffer will be defined
-            this.framebuffer = context.createFramebuffer({
-                colorTextures : [colorTexture],
-                depthTexture : depthTexture,
-                depthRenderbuffer : depthRenderbuffer,
-                destroyAttachments : false
-            });
-
-            this._colorTexture = colorTexture;
-            this._depthTexture = depthTexture;
-            this._depthRenderbuffer = depthRenderbuffer;
-            this._colorStep.x = 1.0 / colorTexture.width;
-            this._colorStep.y = 1.0 / colorTexture.height;
         }
 
-        // Setup the filter command.
-        if (typeof this._filterCommand === 'undefined') {
-            var filterCommand = this._filterCommand = new DrawCommand();
+        if (!defined(this._fbo) || textureChanged) {
+            this._fbo = this._fbo && this._fbo.destroy();
 
-            // Workaround Internet Explorer 11.0.8 lack of TRIANGLE_FAN
-            filterCommand.owner = this;
-            filterCommand.primitiveType = PrimitiveType.TRIANGLES;
-            filterCommand.vertexArray = getVertexArray(context);
-            filterCommand.shaderProgram = context.shaderCache.getShaderProgram(ViewportQuadVS, this.postProcessFilter, attributeIndices);
-            filterCommand.renderState = context.createRenderState({
-                blending : BlendingState.ALPHA_BLEND
+            this._fbo = context.createFramebuffer({
+                colorTextures : [this._texture],
+                depthTexture : this._depthTexture,
+                depthRenderbuffer : this._depthRenderbuffer,
+                destroyAttachments : false
             });
-            filterCommand.uniformMap = {
-                    u_texture : function() {
-                        return that._colorTexture;},
-                    u_postprocessColorStep : function() {
-                        return that._colorStep;
-                    }
-            };
+        }
 
-            // Add extra custom uniforms to the filter command.
-            // The passed in uniform values are assumed to be functions.
+        if (!defined(this._command)) {
+            this._command = context.createViewportQuadCommand(this._fragmentShader, {
+                renderState : context.createRenderState(),
+                owner : this
+            });
+        }
+
+        if (textureChanged) {
+            var that = this;
+            var step = new Cartesian2(1.0 / this._texture.width, 1.0 / this._texture.height);
+            this._command.uniformMap = {
+                u_texture : function() {
+                    return that._texture;
+                },
+                u_step : function() {
+                    return step;
+                }
+            };
             for (var uniform in this._customUniforms) {
                 if (this._customUniforms.hasOwnProperty(uniform)) {
-                    filterCommand.uniformMap[uniform] = this._customUniforms[uniform];
+                    this._command.uniformMap[uniform] = this._customUniforms[uniform];
                 }
             }
         }
-
-        return this.framebuffer;
     };
 
-    /**
-     * Frees all resources associated with this object.
-     *
-     * @memberof CustomPostProcess
-     */
-    CustomPostProcess.prototype.freeResources = function() {
-        this._colorTexture = this._colorTexture && this._colorTexture.destroy();
-        this._depthTexture = this._depthTexture && this._depthTexture.destroy();
-        this._depthRenderbuffer = this._depthRenderbuffer && this._depthRenderbuffer.destroy();
-
-        this.framebuffer = this.framebuffer && this.framebuffer.destroy();
+    CustomPostProcess.prototype.execute = function(context, passState) {
+        this._command.execute(context, passState);
     };
 
+    CustomPostProcess.prototype.clear = function(context, passState, clearColor) {
+        var framebuffer = passState.framebuffer;
 
-    /**
-     * Checks if this object has been destroyed.
-     *
-     * @memberof CustomPostProcess
-     */
+        passState.framebuffer = this._fbo;
+        Color.clone(clearColor, this._clearCommand.color);
+        this._clearCommand.execute(context, passState);
+
+        passState.framebuffer = framebuffer;
+    };
+
+    CustomPostProcess.prototype.getColorFramebuffer = function() {
+        return this._fbo;
+    };
+
     CustomPostProcess.prototype.isDestroyed = function() {
         return false;
     };
 
-    /**
-     * Destroys this object, freeing all resources.
-     *
-     * @memberof CustomPostProcess
-     */
     CustomPostProcess.prototype.destroy = function() {
-        this.freeResources();
+        destroyResources(this);
         return destroyObject(this);
     };
 

@@ -1201,7 +1201,7 @@ define([
             useOIT = useOIT && scene._oit.isSupported();
         }
 
-        var useCPP = defined(scene.customPostProcess);
+        var useCPP = !picking && defined(scene.customPostProcess);
         if (useCPP) {
             scene.customPostProcess.update(context);
             scene.customPostProcess.clear(context, passState, clearColor);

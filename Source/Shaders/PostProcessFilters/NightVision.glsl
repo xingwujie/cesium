@@ -1,5 +1,4 @@
 uniform sampler2D u_texture;
-uniform vec2 u_postprocessColorStep;
 uniform float frequency;
 
 varying vec2 v_textureCoordinates;

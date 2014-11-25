@@ -1,5 +1,4 @@
 uniform sampler2D u_texture;
-uniform vec2 u_postprocessColorStep;
 
 // Custom uniforms
 uniform float temperatureGamma;

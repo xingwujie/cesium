@@ -805,6 +805,40 @@ define([
         return randomChop(nodeArray);
     };
 
+    var subdivideLineScratch = new Cartesian3();
+
+    function subdivideLine(i0, i1, p0, p1, lengthSqrd, minLengthSqrd, subdividedPositions) {
+        if (lengthSqrd <= minLengthSqrd) {
+            return {
+                i0 : i0,
+                i1 : i1,
+                startIndex : 0,
+                count : 0
+            };
+        }
+
+        var n = lengthSqrd / minLengthSqrd;
+        var countDivide = Math.max(0.0, Math.ceil(Math.log(n) / Math.log(2)));
+        var numVertices = Math.pow(2, countDivide);
+
+        var length = Math.sqrt(lengthSqrd);
+        var distanceBetweenVertices = length / numVertices;
+        for (var i = 1; i < numVertices - 1; i++) {
+            var p = Cartesian3.subtract(p1, p0, subdivideLineScratch);
+            Cartesian3.multiplyByScalar(p, i * distanceBetweenVertices / length, p);
+            Cartesian3.add(p0, p, p);
+
+            subdividedPositions.push(p.x, p.y, p.z);
+        }
+
+        return {
+            i0 : i0,
+            i1 : i1,
+            startIndex : subdividedPositions.length / 3 - numVertices - 2,
+            count : numVertices - 2
+        };
+    }
+
     var subdivisionV0Scratch = new Cartesian3();
     var subdivisionV1Scratch = new Cartesian3();
     var subdivisionV2Scratch = new Cartesian3();
@@ -812,6 +846,110 @@ define([
     var subdivisionS1Scratch = new Cartesian3();
     var subdivisionS2Scratch = new Cartesian3();
     var subdivisionMidScratch = new Cartesian3();
+
+    function stripEdges(edge0, edge1, edge2, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd) {
+        // case: edge0.count === 0 && edge1.count === 0 && edge2.count === 0
+        // case: edge0.count === 0 && edge1.count === 0 && edge2.count > 0
+
+        // rework so that edges have same i0 index and subdivided indices move from i0 to i1
+
+        var i0 = edge0.startIndex;
+        var i1 = edge1.startIndex;
+
+        var v0 = Cartesian3.fromArray(subdividedPositions, i0 * 3, subdivisionV0Scratch);
+        var v1 = Cartesian3.fromArray(subdividedPositions, i1 * 3, subdivisionV1Scratch);
+
+        var g0 = Cartesian3.magnitudeSquared(Cartesian3.subtract(v0, v1, subdivisionMidScratch));
+
+        var internalEdge0 = subdivideLine(i0, i1, v0, v1, g0, minDistanceSqrd, subdividedPositions);
+        var internalEdge1;
+
+        if (internalEdge0.count > 0) {
+            subdividedIndices.push(edge0.i0, i0, internalEdge0.startIndex);
+            for (var i = 1; i < internalEdge0.count - 1; ++i) {
+                subdividedIndices.push(edge0.i0, internalEdge0.startIndex + i, internalEdge0.startIndex + i + 1);
+            }
+            subdividedIndices.push(edge0.i0, internalEdge0.startIndex + internalEdge0.count - 1, i1);
+        } else {
+            subdividedIndices.push(edge0.i0, internalEdge0.i0, internalEdge0.i1);
+        }
+
+        for (var j = 1; j < edge0.count && j < edge1.count; ++j) {
+            i0 = edge0.startIndex + j;
+            i1 = edge1.startIndex + j;
+
+            v0 = Cartesian3.fromArray(subdividedPositions, i0 * 3, subdivisionV0Scratch);
+            v1 = Cartesian3.fromArray(subdividedPositions, i1 * 3, subdivisionV1Scratch);
+
+            g0 = Cartesian3.magnitudeSquared(Cartesian3.subtract(v0, v1, subdivisionMidScratch));
+
+            internalEdge1 = subdivideLine(i0, i1, v0, v1, g0, minDistanceSqrd, subdividedPositions);
+
+            // case: internal edge 0 count == 0
+            // case: internal edge 1 count == 0
+            // case: both internal edges have count == 0
+
+            // case: both internal edges have count > 0
+            subdividedIndices.push(internalEdge0.i0, internalEdge1.i0, internalEdge1.startIndex);
+            subdividedIndices.push(internalEdge0.i0, internalEdge1.startIndex, internalEdge0.startIndex);
+            for (var k = 0; k < internalEdge0.count - 1 && k < internalEdge0.count - 1; ++k) {
+                subdividedIndices.push(internalEdge0.startIndex + k, internalEdge1.startIndex + k, internalEdge1.startIndex + k + 1);
+                subdividedIndices.push(internalEdge0.startIndex + k, internalEdge1.startIndex + k + 1, internalEdge0.startIndex + k + 1);
+            }
+
+            // case: k == internal edge 0 count - 1 and k != internal edge 1 count - 1
+            // case: k != internal edge 0 count - 1 and k == internal edge 1 count - 1
+            // case: k == internal edge 0 count - 1 and k == internal edge 1 count - 1
+        }
+
+        // case: j == edge 0 count - 1 and j != edge 1 count - 1
+        // case: j != edge 0 count - 1 and j == edge 1 count - 1
+        // case: j == edge 0 count - 1 and j == edge 1 count - 1
+    }
+
+    function stripTriangle(i0, i1, i2, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd) {
+        var v0 = Cartesian3.fromArray(subdividedPositions, i0 * 3, subdivisionV0Scratch);
+        var v1 = Cartesian3.fromArray(subdividedPositions, i1 * 3, subdivisionV1Scratch);
+        var v2 = Cartesian3.fromArray(subdividedPositions, i2 * 3, subdivisionV2Scratch);
+
+        var s0 = Cartesian3.multiplyByScalar(Cartesian3.normalize(v0, subdivisionS0Scratch), radius, subdivisionS0Scratch);
+        var s1 = Cartesian3.multiplyByScalar(Cartesian3.normalize(v1, subdivisionS1Scratch), radius, subdivisionS1Scratch);
+        var s2 = Cartesian3.multiplyByScalar(Cartesian3.normalize(v2, subdivisionS2Scratch), radius, subdivisionS2Scratch);
+
+        var edgeIndex = Math.min(i0, i1) + ' ' + Math.max(i0, i1);
+        var edge0 = edges[edgeIndex];
+        if (!defined(edge0)) {
+            var g0 = Cartesian3.magnitudeSquared(Cartesian3.subtract(s0, s1, subdivisionMidScratch));
+            edge0 = edges[edgeIndex] = subdivideLine(i0, i1, s0, s1, g0, minDistanceSqrd, subdividedPositions);
+        }
+
+        edgeIndex = Math.min(i1, i2) + ' ' + Math.max(i1, i2);
+        var edge1 = edges[edgeIndex];
+        if (!defined(edge1)) {
+            var g1 = Cartesian3.magnitudeSquared(Cartesian3.subtract(s1, s2, subdivisionMidScratch));
+            edge1 = edges[edgeIndex] = subdivideLine(i1, i2, s1, s2, g1, minDistanceSqrd, subdividedPositions);
+        }
+
+        edgeIndex = Math.min(i2, i0) + ' ' + Math.max(i2, i0);
+        var edge2 = edges[edgeIndex];
+        if (!defined(edge2)) {
+            var g2 = Cartesian3.magnitudeSquared(Cartesian3.subtract(s2, s0, subdivisionMidScratch));
+            edge2 = edges[edgeIndex] = subdivideLine(i2, i0, s2, s0, g2, minDistanceSqrd, subdividedPositions);
+        }
+
+        var diffEdge01 = Math.abs(edge0.count - edge1.count);
+        var diffEdge12 = Math.abs(edge1.count - edge2.count);
+        var diffEdge20 = Math.abs(edge2.count - edge0.count);
+
+        var minEdgeDiff = Math.min(diffEdge01, diffEdge12, diffEdge20);
+        if (minEdgeDiff === diffEdge01) {
+            stripEdges(edge0, edge1, edge2, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd);
+        } else if (minEdgeDiff === diffEdge12) {
+            stripEdges(edge1, edge2, edge0, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd);
+        } else if (minEdgeDiff === diffEdge20) {
+            stripEdges(edge2, edge0, edge1, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd);
+        }
+    }
 
     /**
      * Subdivides positions and raises points to the surface of the ellipsoid.
@@ -850,7 +988,7 @@ define([
         //>>includeEnd('debug');
 
         // triangles that need (or might need) to be subdivided.
-        var triangles = indices.slice(0);
+        //var triangles = indices.slice(0);
 
         // New positions due to edge splits are appended to the positions list.
         var i;
@@ -864,6 +1002,23 @@ define([
             subdividedPositions[q++] = item.z;
         }
 
+        var subdividedIndices = [];
+        var edges = {};
+
+        var radius = ellipsoid.maximumRadius;
+        var minDistance = 2.0 * radius * Math.sin(granularity * 0.5);
+        var minDistanceSqrd = minDistance * minDistance;
+
+        var indicesLength = indices.length;
+        for (i = 0; i < indicesLength; i += 3) {
+            var i0 = indices[i];
+            var i1 = indices[i + 1];
+            var i2 = indices[i + 2];
+
+            stripTriangle(i0, i1, i2, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd);
+        }
+
+        /*
         var subdividedIndices = [];
 
         // Used to make sure shared edges are not split more than once.
@@ -946,6 +1101,7 @@ define([
                 subdividedIndices.push(i2);
             }
         }
+        */
 
         return new Geometry({
             attributes : {

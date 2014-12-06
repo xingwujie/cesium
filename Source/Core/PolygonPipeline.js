@@ -847,11 +847,55 @@ define([
     var subdivisionS2Scratch = new Cartesian3();
     var subdivisionMidScratch = new Cartesian3();
 
+    function stripInternalEdges(edge0, edge1, subdividedIndices) {
+        // the number of vertices on edge 1 will always be >= the number of vertices on edge 0
+        // cases: 1. edge 0 count == 0 && edge count == 0
+        //        2. edge 0 count == 0 && edge count > 0
+        //        3. both > 0
+
+        var k;
+
+        if (edge0.count === 0) {
+            if (edge1.count === 0) {
+                subdividedIndices.push(edge0.i0, edge1.i0, edge1.i1);
+                subdividedIndices.push(edge0.i0, edge1.i1, edge0.i1);
+            } else {
+                subdividedIndices.push(edge0.i0, edge1.i0, edge1.startIndex);
+                for (k = 0; k < edge1.count - 1; ++k) {
+                    subdividedIndices.push(edge0.i0, edge1.startIndex + k, edge1.startIndex + k + 1);
+                }
+                subdividedIndices.push(edge0.i0, edge1.startIndex + edge1.count - 1, edge1.i1);
+                subdividedIndices.push(edge0.i0, edge1.i1, edge0.i1);
+            }
+        } else {
+            subdividedIndices.push(edge0.i0, edge1.i0, edge1.startIndex);
+            subdividedIndices.push(edge0.i0, edge1.startIndex, edge0.startIndex);
+            for (k = 0; k < edge0.count - 1 && k < edge1.count - 1; ++k) {
+                subdividedIndices.push(edge0.startIndex + k, edge1.startIndex + k, edge1.startIndex + k + 1);
+                subdividedIndices.push(edge0.startIndex + k, edge1.startIndex + k + 1, edge0.startIndex + k + 1);
+            }
+
+            var lastInternalVertexIndex0 = edge0.startIndex + edge0.count - 1;
+            if (k === edge0.count - 1 && k === edge1.count - 1) {
+                subdividedIndices.push(lastInternalVertexIndex0, edge1.startIndex + edge1.count - 1, edge1.i1);
+                subdividedIndices.push(lastInternalVertexIndex0, edge1.i1, edge0.i1);
+            } else {
+                subdividedIndices.push(lastInternalVertexIndex0, edge1.i0, edge1.startIndex);
+                for (; k < edge1.count - 1; ++k) {
+                    subdividedIndices.push(lastInternalVertexIndex0, edge1.startIndex + k, edge1.startIndex + k + 1);
+                }
+                subdividedIndices.push(lastInternalVertexIndex0, edge1.startIndex + edge1.count - 1, edge1.i1);
+                subdividedIndices.push(lastInternalVertexIndex0, edge1.i1, edge0.i1);
+            }
+        }
+    }
+
     function stripEdges(edge0, edge1, edge2, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd) {
         // case: edge0.count === 0 && edge1.count === 0 && edge2.count === 0
         // case: edge0.count === 0 && edge1.count === 0 && edge2.count > 0
 
         // rework so that edges have same i0 index and subdivided indices move from i0 to i1
+        // or rework so edge 0 moves from i1 to i0
 
         var i0 = edge0.startIndex;
         var i1 = edge1.startIndex;
@@ -884,27 +928,18 @@ define([
             g0 = Cartesian3.magnitudeSquared(Cartesian3.subtract(v0, v1, subdivisionMidScratch));
 
             internalEdge1 = subdivideLine(i0, i1, v0, v1, g0, minDistanceSqrd, subdividedPositions);
+            stripInternalEdges(internalEdge0, internalEdge1, subdividedIndices);
 
-            // case: internal edge 0 count == 0
-            // case: internal edge 1 count == 0
-            // case: both internal edges have count == 0
-
-            // case: both internal edges have count > 0
-            subdividedIndices.push(internalEdge0.i0, internalEdge1.i0, internalEdge1.startIndex);
-            subdividedIndices.push(internalEdge0.i0, internalEdge1.startIndex, internalEdge0.startIndex);
-            for (var k = 0; k < internalEdge0.count - 1 && k < internalEdge0.count - 1; ++k) {
-                subdividedIndices.push(internalEdge0.startIndex + k, internalEdge1.startIndex + k, internalEdge1.startIndex + k + 1);
-                subdividedIndices.push(internalEdge0.startIndex + k, internalEdge1.startIndex + k + 1, internalEdge0.startIndex + k + 1);
-            }
-
-            // case: k == internal edge 0 count - 1 and k != internal edge 1 count - 1
-            // case: k != internal edge 0 count - 1 and k == internal edge 1 count - 1
-            // case: k == internal edge 0 count - 1 and k == internal edge 1 count - 1
+            internalEdge0 = internalEdge1;
         }
 
-        // case: j == edge 0 count - 1 and j != edge 1 count - 1
-        // case: j != edge 0 count - 1 and j == edge 1 count - 1
-        // case: j == edge 0 count - 1 and j == edge 1 count - 1
+        if (j !== edge0.count) {
+            //stripTriangle(i0, i1, i2, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd)
+        } else if (j !== edge1.count) {
+           //stripTriangle(i0, i1, i2, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd)
+        } else {
+            stripInternalEdges(internalEdge0, edge2, subdividedIndices);
+        }
     }
 
     function stripTriangle(i0, i1, i2, subdividedPositions, subdividedIndices, edges, radius, minDistanceSqrd) {

@@ -74,7 +74,7 @@ define([
 
         // textBaseline needs to be set before the measureText call. It won't work otherwise.
         // It's magic.
-        context2D.textBaseline = defaultValue(options.textBaseline, 'bottom');
+        context2D.textBaseline = 'bottom';//    defaultValue(options.textBaseline, 'bottom');
 
         // in order for measureText to calculate style, the canvas has to be
         // (temporarily) added to the DOM.
@@ -101,9 +101,16 @@ define([
         var height = dimensions.height;
         var baseline = height - dimensions.ascent;
         var y = height - baseline;
+        console.log(text + " " + y + " " + dimensions.bounds.maxy);
 
         canvas.width = width;
         canvas.height = height;
+
+//        context2D.fillStyle = Color.fromRandom({
+//            alpha : 1.0
+//        }).toCssColorString();
+//        context2D.rect(0, 0, canvas.width, canvas.height);
+//        context2D.fill();
 
         // Properties must be explicitly set again after changing width and height
         context2D.font = font;

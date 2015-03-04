@@ -59,14 +59,14 @@ define([
         writeTextToCanvasParameters.strokeColor = outlineColor;
         writeTextToCanvasParameters.strokeWidth = outlineWidth;
 
-        if (verticalOrigin === VerticalOrigin.BOTTOM) {
-            writeTextToCanvasParameters.textBaseline = 'bottom';
-        } else if (verticalOrigin === VerticalOrigin.TOP) {
-            writeTextToCanvasParameters.textBaseline = 'top';
-        } else {
-            // VerticalOrigin.CENTER
-            writeTextToCanvasParameters.textBaseline = 'middle';
-        }
+//        if (verticalOrigin === VerticalOrigin.BOTTOM) {
+//            writeTextToCanvasParameters.textBaseline = 'bottom';
+//        } else if (verticalOrigin === VerticalOrigin.TOP) {
+//            writeTextToCanvasParameters.textBaseline = 'top';
+//        } else {
+//            // VerticalOrigin.CENTER
+//            writeTextToCanvasParameters.textBaseline = 'middle';
+//        }
 
         writeTextToCanvasParameters.fill = style === LabelStyle.FILL || style === LabelStyle.FILL_AND_OUTLINE;
         writeTextToCanvasParameters.stroke = style === LabelStyle.OUTLINE || style === LabelStyle.FILL_AND_OUTLINE;

@@ -70,6 +70,7 @@ define([
      * @param {EntityCollection} entityCollection The entityCollection to visualize.
      */
     var LabelVisualizer = function(scene, entityCollection, useBillboardCollection) {
+        //useBillboardCollection = true;
         //>>includeStart('debug', pragmas.debug);
         if (!defined(scene)) {
             throw new DeveloperError('scene is required.');

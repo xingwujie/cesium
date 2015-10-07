@@ -174,7 +174,7 @@ define([
             releaseGeometryInstances : defaultValue(options.releaseGeometryInstances, true),
             allowPicking : defaultValue(options.allowPicking, true),
             asynchronous : defaultValue(options.asynchronous, true),
-            compressVertices : defaultValue(options.compressVertices, true),
+            compressVertices : false,//defaultValue(options.compressVertices, true),
             _createRenderStatesFunction : undefined,
             _createShaderProgramFunction : undefined,
             _createCommandsFunction : undefined

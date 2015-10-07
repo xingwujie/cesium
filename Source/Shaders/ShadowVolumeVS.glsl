@@ -1,5 +1,6 @@
 attribute vec3 position3DHigh;
 attribute vec3 position3DLow;
+attribute vec3 normal;
 attribute vec4 color;
 
 // emulated noperspective
@@ -13,10 +14,12 @@ vec4 depthClampFarPlane(vec4 vertexInClipCoordinates)
     return vertexInClipCoordinates;
 }
 
+const float delta = -100000.0;
+
 void main()
 {
     v_color = color;
     
     vec4 position = czm_computePosition();
-    gl_Position = depthClampFarPlane(czm_modelViewProjectionRelativeToEye * position);
+    gl_Position = depthClampFarPlane(czm_modelViewProjectionRelativeToEye * (position + vec4(delta * normal, 0.0)));
 }

@@ -72,6 +72,7 @@ define([
         var semiMinorAxis = options.semiMinorAxis;
         var ellipsoid = options.ellipsoid;
         var stRotation = options.stRotation;
+        var shadowVolume = options.shadowVolume;
         var size = (extrude) ? positions.length / 3 * 2 : positions.length / 3;
 
         var textureCoordinates = (vertexFormat.st) ? new Float32Array(size * 2) : undefined;
@@ -136,13 +137,19 @@ define([
                     Matrix3.multiplyByVector(textureMatrix, tangent, tangent);
                 }
                 if (vertexFormat.normal) {
-                    normals[i] = normal.x;
-                    normals[i1] = normal.y;
-                    normals[i2] = normal.z;
-                    if (extrude) {
-                        normals[i + bottomOffset] = -normal.x;
-                        normals[i1 + bottomOffset] = -normal.y;
-                        normals[i2 + bottomOffset] = -normal.z;
+                    if (!shadowVolume) {
+                        normals[i] = normal.x;
+                        normals[i1] = normal.y;
+                        normals[i2] = normal.z;
+                        if (extrude) {
+                            normals[i + bottomOffset] = -normal.x;
+                            normals[i1 + bottomOffset] = -normal.y;
+                            normals[i2 + bottomOffset] = -normal.z;
+                        }
+                    } else {
+                        normals[i + bottomOffset] = normal.x;
+                        normals[i1 + bottomOffset] = normal.y;
+                        normals[i2 + bottomOffset] = normal.z;
                     }
                 }
 
@@ -336,6 +343,7 @@ define([
         var height = options.height;
         var extrudedHeight = options.extrudedHeight;
         var stRotation = options.stRotation;
+        var shadowVolume = options.shadowVolume;
         var size = positions.length / 3 * 2;
 
         var finalPositions = new Float64Array(size * 3);
@@ -419,13 +427,19 @@ define([
                 normal = Cartesian3.normalize(Cartesian3.cross(bottom, next, normal), normal);
 
                 if (vertexFormat.normal) {
-                    normals[i] = normal.x;
-                    normals[i1] = normal.y;
-                    normals[i2] = normal.z;
+                    if (!shadowVolume) {
+                        normals[i] = normal.x;
+                        normals[i1] = normal.y;
+                        normals[i2] = normal.z;
 
-                    normals[i + length] = normal.x;
-                    normals[i1 + length] = normal.y;
-                    normals[i2 + length] = normal.z;
+                        normals[i + length] = normal.x;
+                        normals[i1 + length] = normal.y;
+                        normals[i2 + length] = normal.z;
+                    } else {
+                        normals[i + length] = binormal.x;
+                        normals[i1 + length] = binormal.y;
+                        normals[i2 + length] = binormal.z;
+                    }
                 }
 
                 if (vertexFormat.tangent) {
@@ -633,6 +647,7 @@ define([
         var extrudedHeight = options.extrudedHeight;
         var extrude = (defined(extrudedHeight) && Math.abs(height - extrudedHeight) > 1.0);
         var vertexFormat = defaultValue(options.vertexFormat, VertexFormat.DEFAULT);
+        var shadowVolume = defaultValue(options._shadowVolume, false);
 
         //>>includeStart('debug', pragmas.debug);
         if (!defined(center)) {
@@ -666,6 +681,7 @@ define([
         this._vertexFormat = VertexFormat.clone(vertexFormat);
         this._extrudedHeight = defaultValue(extrudedHeight, height);
         this._extrude = extrude;
+        this._shadowVolume = shadowVolume;
         this._workerName = 'createEllipseGeometry';
     };
 
@@ -673,7 +689,7 @@ define([
      * The number of elements used to pack the object into an array.
      * @type {Number}
      */
-    EllipseGeometry.packedLength = Cartesian3.packedLength + Ellipsoid.packedLength + VertexFormat.packedLength + 8;
+    EllipseGeometry.packedLength = Cartesian3.packedLength + Ellipsoid.packedLength + VertexFormat.packedLength + 9;
 
     /**
      * Stores the provided instance into the provided array.
@@ -711,7 +727,8 @@ define([
         array[startingIndex++] = value._height;
         array[startingIndex++] = value._granularity;
         array[startingIndex++] = value._extrudedHeight;
-        array[startingIndex]   = value._extrude ? 1.0 : 0.0;
+        array[startingIndex++] = value._extrude ? 1.0 : 0.0;
+        array[startingIndex]   = value._shadowVolume ? 1.0 : 0.0;
     };
 
     var scratchCenter = new Cartesian3();
@@ -727,7 +744,8 @@ define([
         stRotation : undefined,
         height : undefined,
         granularity : undefined,
-        extrudedHeight : undefined
+        extrudedHeight : undefined,
+        _shadowVolume : undefined
     };
 
     /**
@@ -763,7 +781,8 @@ define([
         var height = array[startingIndex++];
         var granularity = array[startingIndex++];
         var extrudedHeight = array[startingIndex++];
-        var extrude = array[startingIndex] === 1.0;
+        var extrude = array[startingIndex++] === 1.0;
+        var shadowVolume = array[startingIndex] === 1.0;
 
         if (!defined(result)) {
             scratchOptions.height = height;
@@ -773,6 +792,7 @@ define([
             scratchOptions.rotation = rotation;
             scratchOptions.semiMajorAxis = semiMajorAxis;
             scratchOptions.semiMinorAxis = semiMinorAxis;
+            scratchOptions._shadowVolume = shadowVolume;
             return new EllipseGeometry(scratchOptions);
         }
 
@@ -787,6 +807,7 @@ define([
         result._granularity = granularity;
         result._extrudedHeight = extrudedHeight;
         result._extrude = extrude;
+        result._shadowVolume = shadowVolume;
 
         return result;
     };
@@ -809,7 +830,8 @@ define([
             extrudedHeight : ellipseGeometry._extrudedHeight,
             granularity : ellipseGeometry._granularity,
             vertexFormat : ellipseGeometry._vertexFormat,
-            stRotation : ellipseGeometry._stRotation
+            stRotation : ellipseGeometry._stRotation,
+            shadowVolume : ellipseGeometry._shadowVolume
         };
         var geometry;
         if (ellipseGeometry._extrude) {
@@ -831,11 +853,11 @@ define([
     /**
      * @private
      */
-    EllipseGeometry.createShadowVolume = function(ellipseGeometry, minHeightFunc, maxHeightFunc) {
+    EllipseGeometry.createShadowVolume = function(ellipseGeometry, maxHeightFunc) {
         var granularity = ellipseGeometry._granularity;
         var ellipsoid = ellipseGeometry._ellipsoid;
 
-        var minHeight = minHeightFunc(granularity, ellipsoid);
+        var minHeight = 0.0;
         var maxHeight = maxHeightFunc(granularity, ellipsoid);
 
         return new EllipseGeometry({
@@ -847,7 +869,8 @@ define([
             granularity : granularity,
             extrudedHeight : minHeight,
             height : maxHeight,
-            vertexFormat : VertexFormat.POSITION_ONLY
+            vertexFormat : VertexFormat.POSITION_AND_NORMAL,
+            _shadowVolume : true
         });
     };
 

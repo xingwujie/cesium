@@ -73,7 +73,8 @@ define([
             extrudedHeight : options.extrudedHeight,
             granularity : options.granularity,
             vertexFormat : options.vertexFormat,
-            stRotation : options.stRotation
+            stRotation : options.stRotation,
+            _shadowVolume : options._shadowVolume
         };
         this._ellipseGeometry = new EllipseGeometry(ellipseGeometryOptions);
         this._workerName = 'createCircleGeometry';
@@ -117,7 +118,8 @@ define([
         vertexFormat : new VertexFormat(),
         stRotation : undefined,
         semiMajorAxis : undefined,
-        semiMinorAxis : undefined
+        semiMinorAxis : undefined,
+        _shadowVolume : undefined
     };
 
     /**
@@ -137,6 +139,7 @@ define([
         scratchOptions.granularity = ellipseGeometry._granularity;
         scratchOptions.vertexFormat = VertexFormat.clone(ellipseGeometry._vertexFormat, scratchOptions.vertexFormat);
         scratchOptions.stRotation = ellipseGeometry._stRotation;
+        scratchOptions._shadowVolume = ellipseGeometry._shadowVolume;
 
         if (!defined(result)) {
             scratchOptions.radius = ellipseGeometry._semiMajorAxis;
@@ -162,11 +165,11 @@ define([
     /**
      * @private
      */
-    CircleGeometry.createShadowVolume = function(circleGeometry, minHeightFunc, maxHeightFunc) {
+    CircleGeometry.createShadowVolume = function(circleGeometry, maxHeightFunc) {
         var granularity = circleGeometry._ellipseGeometry._granularity;
         var ellipsoid = circleGeometry._ellipseGeometry._ellipsoid;
 
-        var minHeight = minHeightFunc(granularity, ellipsoid);
+        var minHeight = 0.0;
         var maxHeight = maxHeightFunc(granularity, ellipsoid);
 
         return new CircleGeometry({
@@ -177,7 +180,8 @@ define([
             granularity : granularity,
             extrudedHeight : minHeight,
             height : maxHeight,
-            vertexFormat : VertexFormat.POSITION_ONLY
+            vertexFormat : VertexFormat.POSITION_AND_NORMAL,
+            _shadowVolume : true
         });
     };
 

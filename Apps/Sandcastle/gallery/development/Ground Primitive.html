@@ -27,13 +27,7 @@
 function startup(Cesium) {
     "use strict";
 //Sandcastle_Begin
-var viewer = new Cesium.Viewer('cesiumContainer', {
-    //baseLayerPicker : false,
-    //imageryProvider : new Cesium.TileMapServiceImageryProvider({
-    //    url : Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-    //})
-});
-
+var viewer = new Cesium.Viewer('cesiumContainer');
 viewer.terrainProvider = new Cesium.CesiumTerrainProvider({
     url: '//assets.agi.com/stk-terrain/world',
     requestVertexNormals : true
@@ -43,31 +37,14 @@ var lonGran = 10.0;
 var latGran = lonGran;
 
 for (var i = -180.0; i < 180.0; i += lonGran) {
-    for (var j = -90.0; j < 90.0; j += latGran) {
-        /*
-        var positions = [
-            i,           j,
-            i + lonGran, j,
-            i + lonGran, j + latGran,
-            i,           j + latGran
-        ];
-        
+    for (var j = -90.0 + latGran; j < 90.0 - latGran; j += latGran) {
+        var center = Cesium.Cartesian3.fromDegrees(i + lonGran * 0.5, j + latGran * 0.5);
+        var radius = Cesium.Cartesian3.distance(Cesium.Cartesian3.fromDegrees(i, j), center) * 0.5;
         viewer.scene.groundPrimitives.add(new Cesium.GroundPrimitive({
             geometryInstance : new Cesium.GeometryInstance({
-                geometry : Cesium.PolygonGeometry.fromPositions({
-                    positions : Cesium.Cartesian3.fromDegreesArray(positions)
-                }),
-                attributes : {
-                    color : Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.fromRandom({ alpha : 0.5 }))
-                }
-            })
-        }));
-        */
-        
-        viewer.scene.groundPrimitives.add(new Cesium.GroundPrimitive({
-            geometryInstance : new Cesium.GeometryInstance({
-                geometry : new Cesium.RectangleGeometry({
-                    rectangle : Cesium.Rectangle.fromDegrees(i, j, i + lonGran, j + latGran)
+                geometry : new Cesium.CircleGeometry({
+                    center : center,
+                    radius : radius
                 }),
                 attributes : {
                     color : Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.fromRandom({ alpha : 0.5 }))

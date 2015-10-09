@@ -151,7 +151,7 @@ define([
 
     var v1Scratch = new Cartesian3();
     var v2Scratch = new Cartesian3();
-    function calculateAttributesWall(positions, vertexFormat, ellipsoid) {
+    function calculateAttributesWall(positions, vertexFormat, ellipsoid, shadowVolume) {
         var length = positions.length;
 
         var normals = (vertexFormat.normal) ? new Float32Array(length) : undefined;
@@ -191,12 +191,23 @@ define([
                 }
 
                 if (vertexFormat.normal) {
-                    normals[normalIndex++] = normal.x;
-                    normals[normalIndex++] = normal.y;
-                    normals[normalIndex++] = normal.z;
-                    normals[normalIndex++] = normal.x;
-                    normals[normalIndex++] = normal.y;
-                    normals[normalIndex++] = normal.z;
+                    if (!shadowVolume) {
+                        normals[normalIndex++] = normal.x;
+                        normals[normalIndex++] = normal.y;
+                        normals[normalIndex++] = normal.z;
+                        normals[normalIndex++] = normal.x;
+                        normals[normalIndex++] = normal.y;
+                        normals[normalIndex++] = normal.z;
+                    } else {
+                        normal = ellipsoid.geodeticSurfaceNormal(p, normal);
+
+                        normals[normalIndex++] = 0.0;
+                        normals[normalIndex++] = 0.0;
+                        normals[normalIndex++] = 0.0;
+                        normals[normalIndex++] = normal.x;
+                        normals[normalIndex++] = normal.y;
+                        normals[normalIndex++] = normal.z;
+                    }
                 }
 
                 if (vertexFormat.tangent) {
@@ -332,6 +343,8 @@ define([
         var vertexFormat = options.vertexFormat;
         var surfaceHeight = options.surfaceHeight;
         var extrudedHeight = options.extrudedHeight;
+        var shadowVolume = options.shadowVolume;
+
         var minHeight = Math.min(extrudedHeight, surfaceHeight);
         var maxHeight = Math.max(extrudedHeight, surfaceHeight);
 
@@ -362,11 +375,16 @@ define([
         var topSt;
         if (vertexFormat.normal) {
             var topNormals = topBottomGeo.attributes.normal.values;
-            normals.set(topNormals);
-            for (i = 0; i < length; i ++) {
-                topNormals[i] = -topNormals[i];
+            if (shadowVolume) {
+                normals.set(topNormals, length);
+            } else {
+                normals.set(topNormals);
+                for (i = 0; i < length; i ++) {
+                    topNormals[i] = -topNormals[i];
+                }
+                normals.set(topNormals, length);
             }
-            normals.set(topNormals, length);
+
             topBottomGeo.attributes.normal.values = normals;
         }
         if (vertexFormat.tangent) {
@@ -448,7 +466,7 @@ define([
             }
         }
 
-        var geo = calculateAttributesWall(wallPositions, vertexFormat, ellipsoid);
+        var geo = calculateAttributesWall(wallPositions, vertexFormat, ellipsoid, shadowVolume);
 
         if (vertexFormat.st) {
             geo.attributes.st = new GeometryAttribute({
@@ -557,6 +575,7 @@ define([
         var extrude = defined(extrudedHeight);
         var closeTop = defaultValue(options.closeTop, true);
         var closeBottom = defaultValue(options.closeBottom, true);
+        var shadowVolume = defaultValue(options._shadowVolume, false);
 
         //>>includeStart('debug', pragmas.debug);
         if (!defined(rectangle)) {
@@ -579,6 +598,7 @@ define([
         this._extrude = extrude;
         this._closeTop = closeTop;
         this._closeBottom = closeBottom;
+        this._shadowVolume = shadowVolume;
         this._workerName = 'createRectangleGeometry';
     };
 
@@ -586,7 +606,7 @@ define([
      * The number of elements used to pack the object into an array.
      * @type {Number}
      */
-    RectangleGeometry.packedLength = Rectangle.packedLength + Ellipsoid.packedLength + VertexFormat.packedLength + 8;
+    RectangleGeometry.packedLength = Rectangle.packedLength + Ellipsoid.packedLength + VertexFormat.packedLength + 9;
 
     /**
      * Stores the provided instance into the provided array.
@@ -624,7 +644,8 @@ define([
         array[startingIndex++] = value._extrudedHeight;
         array[startingIndex++] = value._extrude ? 1.0 : 0.0;
         array[startingIndex++] = value._closeTop ? 1.0 : 0.0;
-        array[startingIndex]   = value._closeBottom ? 1.0 : 0.0;
+        array[startingIndex++] = value._closeBottom ? 1.0 : 0.0;
+        array[startingIndex]   = value._shadowVolume ? 1.0 : 0.0;
     };
 
     var scratchRectangle = new Rectangle();
@@ -676,7 +697,8 @@ define([
         var extrudedHeight = array[startingIndex++];
         var extrude = array[startingIndex++] === 1.0;
         var closeTop = array[startingIndex++] === 1.0;
-        var closeBottom = array[startingIndex] === 1.0;
+        var closeBottom = array[startingIndex++] === 1.0;
+        var shadowVolume = array[startingIndex] === 1.0;
 
         if (!defined(result)) {
             scratchOptions.granularity = granularity;
@@ -686,6 +708,7 @@ define([
             scratchOptions.extrudedHeight = extrude ? extrudedHeight : undefined;
             scratchOptions.closeTop = closeTop;
             scratchOptions.closeBottom = closeBottom;
+            scratchOptions._shadowVolume = shadowVolume;
             return new RectangleGeometry(scratchOptions);
         }
 
@@ -700,6 +723,7 @@ define([
         result._extrude = extrude;
         result._closeTop = closeTop;
         result._closeBottom = closeBottom;
+        result._shadowVolume = shadowVolume;
 
         return result;
     };
@@ -725,6 +749,7 @@ define([
         var extrudedHeight = rectangleGeometry._extrudedHeight;
         var stRotation = rectangleGeometry._stRotation;
         var vertexFormat = rectangleGeometry._vertexFormat;
+        var shadowVolume = rectangleGeometry._shadowVolume;
 
         var options = RectangleGeometryLibrary.computeOptions(rectangleGeometry, rectangle, nwScratch);
 
@@ -749,6 +774,7 @@ define([
         options.textureMatrix = textureMatrix;
         options.tangentRotationMatrix = tangentRotationMatrix;
         options.size = options.width * options.height;
+        options.shadowVolume = shadowVolume;
 
         var geometry;
         var boundingSphere;
@@ -779,11 +805,11 @@ define([
     /**
      * @private
      */
-    RectangleGeometry.createShadowVolume = function(rectangleGeometry, minHeightFunc, maxHeightFunc) {
+    RectangleGeometry.createShadowVolume = function(rectangleGeometry, maxHeightFunc) {
         var granularity = rectangleGeometry._granularity;
         var ellipsoid = rectangleGeometry._ellipsoid;
 
-        var minHeight = minHeightFunc(granularity, ellipsoid);
+        var minHeight = 0.0;
         var maxHeight = maxHeightFunc(granularity, ellipsoid);
 
         // TODO: stRotation
@@ -797,7 +823,8 @@ define([
             height : minHeight,
             closeTop : true,
             closeBottom : true,
-            vertexFormat : VertexFormat.POSITION_ONLY
+            vertexFormat : VertexFormat.POSITION_AND_NORMAL,
+            _shadowVolume : true
         });
     };
 

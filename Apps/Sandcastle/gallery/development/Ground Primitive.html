@@ -28,14 +28,15 @@ function startup(Cesium) {
     "use strict";
 //Sandcastle_Begin
 var viewer = new Cesium.Viewer('cesiumContainer', {
-    imageryProvider : new Cesium.TileMapServiceImageryProvider({
-        url : Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-    }),
-    terrainProvider : new Cesium.CesiumTerrainProvider({
-        url: '//assets.agi.com/stk-terrain/world',
-        requestVertexNormals : true
-    }),
-    baseLayerPicker : false
+    //baseLayerPicker : false,
+    //imageryProvider : new Cesium.TileMapServiceImageryProvider({
+    //    url : Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+    //})
+});
+
+viewer.terrainProvider = new Cesium.CesiumTerrainProvider({
+    url: '//assets.agi.com/stk-terrain/world',
+    requestVertexNormals : true
 });
 
 var lonGran = 10.0;
@@ -43,6 +44,7 @@ var latGran = lonGran;
 
 for (var i = -180.0; i < 180.0; i += lonGran) {
     for (var j = -90.0; j < 90.0; j += latGran) {
+        /*
         var positions = [
             i,           j,
             i + lonGran, j,
@@ -54,6 +56,18 @@ for (var i = -180.0; i < 180.0; i += lonGran) {
             geometryInstance : new Cesium.GeometryInstance({
                 geometry : Cesium.PolygonGeometry.fromPositions({
                     positions : Cesium.Cartesian3.fromDegreesArray(positions)
+                }),
+                attributes : {
+                    color : Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.fromRandom({ alpha : 0.5 }))
+                }
+            })
+        }));
+        */
+        
+        viewer.scene.groundPrimitives.add(new Cesium.GroundPrimitive({
+            geometryInstance : new Cesium.GeometryInstance({
+                geometry : new Cesium.RectangleGeometry({
+                    rectangle : Cesium.Rectangle.fromDegrees(i, j, i + lonGran, j + latGran)
                 }),
                 attributes : {
                     color : Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.fromRandom({ alpha : 0.5 }))

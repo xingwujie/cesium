@@ -278,19 +278,6 @@ define([
                     values : binormals
                 });
             }
-
-            if (wall) {
-                var logNormals = new Array(normals.length / 3);
-                var logPositions = new Array(flatPositions.length / 3);
-
-                for (var j = 0; j < flatPositions.length; j += 3) {
-                    logPositions[j / 3] = Cartesian3.unpack(flatPositions, j);
-                    logNormals[j / 3] = Cartesian3.unpack(normals, j);
-                }
-
-                console.log(logPositions);
-                console.log(logNormals);
-            }
         }
         return geometry;
     }
@@ -746,11 +733,11 @@ define([
     /**
      * @private
      */
-    PolygonGeometry.createShadowVolume = function(polygonGeometry, minHeightFunc, maxHeightFunc) {
+    PolygonGeometry.createShadowVolume = function(polygonGeometry, maxHeightFunc) {
         var granularity = polygonGeometry._granularity;
         var ellipsoid = polygonGeometry._ellipsoid;
 
-        var minHeight = 0.0;//minHeightFunc(granularity, ellipsoid);
+        var minHeight = 0.0;
         var maxHeight = maxHeightFunc(granularity, ellipsoid);
 
         return new PolygonGeometry({

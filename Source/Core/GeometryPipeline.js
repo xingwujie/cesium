@@ -999,7 +999,7 @@ define([
      * <p>
      * This is used by {@link Primitive} to efficiently render a large amount of static data.
      * </p>
-     * 
+     *
      * @private
      *
      * @param {GeometryInstance[]} [instances] The array of {@link GeometryInstance} objects whose geometry will be combined.
@@ -1894,7 +1894,9 @@ define([
 
             var normal = Cartesian3.add(n0, n1, n0);
             Cartesian3.add(normal, n2, normal);
-            Cartesian3.normalize(normal, normal);
+            if (Cartesian3.magnitudeSquared(normal) > CesiumMath.EPSILON6) {
+                Cartesian3.normalize(normal, normal);
+            }
 
             Cartesian3.pack(normal, currentAttributes.normal.values, insertedIndex * 3);
         }
@@ -1910,7 +1912,9 @@ define([
 
             var binormal = Cartesian3.add(b0, b1, b0);
             Cartesian3.add(binormal, b2, binormal);
-            Cartesian3.normalize(binormal, binormal);
+            if (Cartesian3.magnitudeSquared(binormal) > CesiumMath.EPSILON6) {
+                Cartesian3.normalize(binormal, binormal);
+            }
 
             Cartesian3.pack(binormal, currentAttributes.binormal.values, insertedIndex * 3);
         }
@@ -1926,7 +1930,9 @@ define([
 
             var tangent = Cartesian3.add(t0, t1, t0);
             Cartesian3.add(tangent, t2, tangent);
-            Cartesian3.normalize(tangent, tangent);
+            if (Cartesian3.magnitudeSquared(tangent) > CesiumMath.EPSILON6) {
+                Cartesian3.normalize(tangent, tangent);
+            }
 
             Cartesian3.pack(tangent, currentAttributes.tangent.values, insertedIndex * 3);
         }

@@ -146,6 +146,9 @@ define([
          */
         this.debugShowBoundingVolume = defaultValue(options.debugShowBoundingVolume, false);
 
+        this.debugShowShadowVolume = defaultValue(options.debugShowShadowVolume, false);
+        this._debugShowShadowVolume = false;
+
         this._sp = undefined;
         this._spPick = undefined;
 
@@ -174,10 +177,11 @@ define([
             releaseGeometryInstances : defaultValue(options.releaseGeometryInstances, true),
             allowPicking : defaultValue(options.allowPicking, true),
             asynchronous : defaultValue(options.asynchronous, true),
-            compressVertices : false,//defaultValue(options.compressVertices, true),
+            compressVertices : false,
             _createRenderStatesFunction : undefined,
             _createShaderProgramFunction : undefined,
-            _createCommandsFunction : undefined
+            _createCommandsFunction : undefined,
+            _updateAndQueueCommandsFunction : undefined
         };
     };
 
@@ -325,10 +329,6 @@ define([
         var r = ellipsoid.maximumRadius;
         var delta = (r / Math.cos(granularity * 0.5)) - r;
         return GroundPrimitive._maxHeight + delta;
-    }
-
-    function computeMinimumHeight(granularity, ellipsoid) {
-        return GroundPrimitive._minHeight;
     }
 
     var stencilPreloadRenderState = {
@@ -515,7 +515,6 @@ define([
         var fs = ShadowVolumeFS;
         var attributeLocations = primitive._primitive._attributeLocations;
 
-
         primitive._sp = ShaderProgram.replaceCache({
             context : context,
             shaderProgram : primitive._sp,
@@ -544,6 +543,42 @@ define([
                 attributeLocations : attributeLocations
             });
         }
+    }
+
+    function createShaderProgramDebugVolume(primitive, context, frameState, appearance) {
+        if (defined(primitive._sp)) {
+            return;
+        }
+
+        var vsSource = Primitive._createColumbusViewShader(ShadowVolumeVS, frameState.scene3DOnly);
+        vsSource = Primitive._appendShowToShader(primitive, vsSource);
+
+        var vs = new ShaderSource({
+            defined : ['DEBUG_SHOW_VOLUME'],
+            sources : [vsSource]
+        });
+
+        var fs = new ShaderSource({
+            defined : ['DEBUG_SHOW_VOLUME'],
+            sources : [ShadowVolumeFS]
+        });
+        var attributeLocations = primitive._attributeLocations;
+
+        primitive._sp = ShaderProgram.replaceCache({
+            context : context,
+            shaderProgram : primitive._sp,
+            vertexShaderSource : vs,
+            fragmentShaderSource : fs,
+            attributeLocations : attributeLocations
+        });
+
+        primitive._pickSP = ShaderProgram.replaceCache({
+            context : context,
+            shaderProgram : primitive._pickSP,
+            vertexShaderSource : vs,
+            fragmentShaderSource : fs,
+            attributeLocations : attributeLocations
+        });
     }
 
     function createCommands(groundPrimitive, appearance, material, translucent, twoPasses, colorCommands, pickCommands) {
@@ -672,6 +707,8 @@ define([
             return;
         }
 
+        var that = this;
+
         if (!defined(this._primitive)) {
             var instance = this.geometryInstance;
             var geometry = instance.geometry;
@@ -679,7 +716,7 @@ define([
             var instanceType = geometry.constructor;
             if (defined(instanceType) && defined(instanceType.createShadowVolume)) {
                 instance = new GeometryInstance({
-                    geometry : instanceType.createShadowVolume(geometry, computeMinimumHeight, computeMaximumHeight),
+                    geometry : instanceType.createShadowVolume(geometry, computeMaximumHeight),
                     attributes : instance.attributes,
                     modelMatrix : Matrix4.IDENTITY,
                     id : instance.id,
@@ -690,7 +727,6 @@ define([
             var primitiveOptions = this._primitiveOptions;
             primitiveOptions.geometryInstances = instance;
 
-            var that = this;
             this._primitiveOptions._createBoundingVolumeFunction = function(frameState, geometry) {
                 createBoundingVolume(that, frameState, geometry);
             };
@@ -722,6 +758,34 @@ define([
                     that._readyPromise.reject(error);
                 }
             });
+        }
+
+        if (this.debugShowShadowVolume !== this._debugShowShadowVolume) {
+            this._debugShowShadowVolume = this.debugShowShadowVolume;
+
+            if (this._debugShowShadowVolume) {
+                //this._primitive._createShaderProgramFunction = createShaderProgramDebugVolume;
+                this._primitive._createShaderProgramFunction = undefined;
+
+                this._primitive._createBoundingVolumeFunction = undefined;
+                this._primitive._createRenderStatesFunction = undefined;
+                this._primitive._createCommandsFunction = undefined;
+                this._primitive._updateAndQueueCommandsFunction = undefined;
+            } else {
+                this._primitive._createBoundingVolumeFunction = this._primitiveOptions._createBoundingVolumeFunction;
+                this._primitive._createRenderStatesFunction = this._primitiveOptions._createRenderStatesFunction;
+                this._primitive._createShaderProgramFunction = this._primitiveOptions._createShaderProgramFunction;
+                this._primitive._createCommandsFunction = this._primitiveOptions._createCommandsFunction;
+                this._primitive._updateAndQueueCommandsFunction = this._primitiveOptions._updateAndQueueCommandsFunction;
+            }
+
+            if (defined(this._primitive._sp)) {
+                this._primitive._sp.destroy();
+                this._primitive._pickSP.destroy();
+
+                this._primitive._sp = undefined;
+                this._primitive._pickSP = undefined;
+            }
         }
 
         this._primitive.debugShowBoundingVolume = this.debugShowBoundingVolume;

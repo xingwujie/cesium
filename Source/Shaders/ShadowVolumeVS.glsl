@@ -3,6 +3,7 @@ attribute vec3 position3DLow;
 attribute vec3 normal;
 attribute vec4 color;
 
+#ifndef DEBUG_SHOW_VOLUME
 // emulated noperspective
 varying float v_WindowZ;
 varying vec4 v_color;
@@ -13,8 +14,14 @@ vec4 depthClampFarPlane(vec4 vertexInClipCoordinates)
     vertexInClipCoordinates.z = min(vertexInClipCoordinates.z, vertexInClipCoordinates.w);
     return vertexInClipCoordinates;
 }
+#else
+vec4 depthClampFarPlane(vec4 vertexInClipCoordinates)
+{
+    return vertexInClipCoordinates;
+}
+#endif
 
-const float delta = -100000.0;
+const float delta = -11500.0;//-100000.0;
 
 void main()
 {

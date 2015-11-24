@@ -44,7 +44,6 @@ defineSuite([
         createDynamicProperty,
         createScene) {
     "use strict";
-    /*global jasmine,describe,xdescribe,it,xit,expect,beforeEach,afterEach,beforeAll,afterAll,spyOn*/
 
     var time;
     var time2;
@@ -331,6 +330,26 @@ defineSuite([
         expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(outline.getValue(time2)));
     });
 
+    it('createFillGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicWall();
+        entity.show = false;
+        entity.wall.fill = true;
+        var updater = new WallGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
+    it('createOutlineGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicWall();
+        entity.show = false;
+        entity.wall.outline = true;
+        var updater = new WallGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
     it('dynamic updater sets properties', function() {
         var wall = new WallGraphics();
         wall.positions = createDynamicProperty(Cartesian3.fromRadiansArray([0, 0, 1, 0, 1, 1, 0, 1]));
@@ -360,6 +379,11 @@ defineSuite([
         expect(options.minimumHeights).toEqual(wall.minimumHeights.getValue());
         expect(options.maximumHeights).toEqual(wall.maximumHeights.getValue());
         expect(options.granularity).toEqual(wall.granularity.getValue());
+
+        entity.show = false;
+        dynamicUpdater.update(JulianDate.now());
+        expect(primitives.length).toBe(0);
+        entity.show = true;
 
         //If a dynamic show returns false, the primitive should go away.
         wall.show.setValue(false);

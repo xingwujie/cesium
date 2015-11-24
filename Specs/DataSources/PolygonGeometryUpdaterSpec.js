@@ -46,7 +46,6 @@ defineSuite([
         createDynamicProperty,
         createScene) {
     "use strict";
-    /*global jasmine,describe,xdescribe,it,xit,expect,beforeEach,afterEach,beforeAll,afterAll,spyOn*/
 
     var scene;
     var time;
@@ -357,6 +356,26 @@ defineSuite([
         expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(outline.getValue(time2)));
     });
 
+    it('createFillGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicPolygon();
+        entity.show = false;
+        entity.polygon.fill = true;
+        var updater = new PolygonGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
+    it('createOutlineGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicPolygon();
+        entity.show = false;
+        entity.polygon.outline = true;
+        var updater = new PolygonGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
     it('dynamic updater sets properties', function() {
         var polygon = new PolygonGraphics();
         polygon.hierarchy = createDynamicProperty(new PolygonHierarchy(Cartesian3.fromRadiansArray([
@@ -394,6 +413,11 @@ defineSuite([
         expect(options.perPositionHeight).toEqual(polygon.perPositionHeight.getValue());
         expect(options.granularity).toEqual(polygon.granularity.getValue());
         expect(options.stRotation).toEqual(polygon.stRotation.getValue());
+
+        entity.show = false;
+        dynamicUpdater.update(JulianDate.now());
+        expect(primitives.length).toBe(0);
+        entity.show = true;
 
         //If a dynamic show returns false, the primitive should go away.
         polygon.show.setValue(false);

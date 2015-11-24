@@ -46,7 +46,6 @@ defineSuite([
         createDynamicProperty,
         createScene) {
     "use strict";
-    /*global jasmine,describe,xdescribe,it,xit,expect,beforeEach,afterEach,beforeAll,afterAll,spyOn*/
 
     var scene;
     var time;
@@ -362,6 +361,26 @@ defineSuite([
         expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(outline.getValue(time2)));
     });
 
+    it('createFillGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicCorridor();
+        entity.show = false;
+        entity.corridor.fill = true;
+        var updater = new CorridorGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
+    it('createOutlineGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicCorridor();
+        entity.show = false;
+        entity.corridor.outline = true;
+        var updater = new CorridorGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
     it('dynamic updater sets properties', function() {
         var corridor = new CorridorGraphics();
         corridor.positions = createDynamicProperty(Cartesian3.fromRadiansArray([
@@ -399,6 +418,11 @@ defineSuite([
         expect(options.width).toEqual(corridor.width.getValue());
         expect(options.granularity).toEqual(corridor.granularity.getValue());
         expect(options.cornerType).toEqual(corridor.cornerType.getValue());
+
+        entity.show = false;
+        dynamicUpdater.update(JulianDate.now());
+        expect(primitives.length).toBe(0);
+        entity.show = true;
 
         //If a dynamic show returns false, the primitive should go away.
         corridor.show.setValue(false);

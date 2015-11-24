@@ -316,7 +316,7 @@ define([
         var attributes;
 
         var color;
-        var show = new ShowGeometryInstanceAttribute(isAvailable && this._showProperty.getValue(time) && this._fillProperty.getValue(time));
+        var show = new ShowGeometryInstanceAttribute(isAvailable && entity.isShowing && this._showProperty.getValue(time) && this._fillProperty.getValue(time));
         if (this._materialProperty instanceof ColorMaterialProperty) {
             var currentColor = Color.WHITE;
             if (defined(this._materialProperty.color) && (this._materialProperty.color.isConstant || isAvailable)) {
@@ -367,7 +367,7 @@ define([
             id : entity,
             geometry : new PolygonOutlineGeometry(this._options),
             attributes : {
-                show : new ShowGeometryInstanceAttribute(isAvailable && this._showProperty.getValue(time) && this._showOutlineProperty.getValue(time)),
+                show : new ShowGeometryInstanceAttribute(isAvailable && entity.isShowing && this._showProperty.getValue(time) && this._showOutlineProperty.getValue(time)),
                 color : ColorGeometryInstanceAttribute.fromColor(outlineColor)
             }
         });
@@ -542,7 +542,7 @@ define([
         var geometryUpdater = this._geometryUpdater;
         var entity = geometryUpdater._entity;
         var polygon = entity.polygon;
-        if (!entity.isAvailable(time) || !Property.getValueOrDefault(polygon.show, time, true)) {
+        if (!entity.isShowing || !entity.isAvailable(time) || !Property.getValueOrDefault(polygon.show, time, true)) {
             return;
         }
 

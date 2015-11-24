@@ -279,6 +279,11 @@ define([
             unbindGlyph(labelCollection, glyphs[i]);
         }
         label._labelCollection = undefined;
+
+        if (defined(label._removeCallbackFunc)) {
+            label._removeCallbackFunc();
+        }
+
         destroyObject(label);
     }
 
@@ -300,6 +305,7 @@ define([
      * @param {Object} [options] Object with the following properties:
      * @param {Matrix4} [options.modelMatrix=Matrix4.IDENTITY] The 4x4 transformation matrix that transforms each label from model to world coordinates.
      * @param {Boolean} [options.debugShowBoundingVolume=false] For debugging only. Determines if this primitive's commands' bounding spheres are shown.
+     * @param {Scene} [options.scene] Must be passed in for labels that use the height reference property or will be depth tested against the globe.
      *
      * @performance For best performance, prefer a few collections, each with many labels, to
      * many collections with only a few labels each.  Avoid having collections where some
@@ -315,22 +321,26 @@ define([
      *
      * @example
      * // Create a label collection with two labels
-     * var labels = new Cesium.LabelCollection();
+     * var labels = scene.primitives.add(new Cesium.LabelCollection());
      * labels.add({
-     *   position : { x : 1.0, y : 2.0, z : 3.0 },
+     *   position : new Cesium.Cartesian3(1.0, 2.0, 3.0),
      *   text : 'A label'
      * });
      * labels.add({
-     *   position : { x : 4.0, y : 5.0, z : 6.0 },
+     *   position : new Cesium.Cartesian3(4.0, 5.0, 6.0),
      *   text : 'Another label'
      * });
      */
     var LabelCollection = function(options) {
         options = defaultValue(options, defaultValue.EMPTY_OBJECT);
 
+        this._scene = options.scene;
+
         this._textureAtlas = undefined;
 
-        this._billboardCollection = new BillboardCollection();
+        this._billboardCollection = new BillboardCollection({
+            scene : this._scene
+        });
         this._billboardCollection.destroyTextureAtlas = false;
 
         this._spareBillboards = [];
@@ -563,11 +573,13 @@ define([
     /**
      * @private
      */
-    LabelCollection.prototype.update = function(context, frameState, commandList) {
+    LabelCollection.prototype.update = function(frameState) {
         var billboardCollection = this._billboardCollection;
 
         billboardCollection.modelMatrix = this.modelMatrix;
         billboardCollection.debugShowBoundingVolume = this.debugShowBoundingVolume;
+
+        var context = frameState.context;
 
         if (!defined(this._textureAtlas)) {
             this._textureAtlas = new TextureAtlas({
@@ -588,7 +600,8 @@ define([
             labelsToUpdate = this._labelsToUpdate;
         }
 
-        for (var i = 0, len = labelsToUpdate.length; i < len; ++i) {
+        var len = labelsToUpdate.length;
+        for (var i = 0; i < len; ++i) {
             var label = labelsToUpdate[i];
             if (label.isDestroyed()) {
                 continue;
@@ -611,7 +624,7 @@ define([
         }
 
         this._labelsToUpdate.length = 0;
-        billboardCollection.update(context, frameState, commandList);
+        billboardCollection.update(frameState);
     };
 
     /**
@@ -649,6 +662,7 @@ define([
         this.removeAll();
         this._billboardCollection = this._billboardCollection.destroy();
         this._textureAtlas = this._textureAtlas && this._textureAtlas.destroy();
+
         return destroyObject(this);
     };
 

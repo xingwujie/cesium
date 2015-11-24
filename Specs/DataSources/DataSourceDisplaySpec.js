@@ -20,7 +20,6 @@ defineSuite([
         createScene,
         MockDataSource) {
     "use strict";
-    /*global jasmine,describe,xdescribe,it,xit,expect,beforeEach,afterEach,beforeAll,afterAll,spyOn*/
 
     var dataSourceCollection;
     var scene;
@@ -84,10 +83,6 @@ defineSuite([
         expect(display.dataSources).toBe(dataSourceCollection);
         expect(display.isDestroyed()).toEqual(false);
         expect(display.defaultDataSource).toBeDefined();
-
-        //deprecated
-        expect(display.getScene()).toBe(scene);
-        expect(display.getDataSources()).toBe(dataSourceCollection);
 
         display.destroy();
     });
@@ -210,7 +205,6 @@ defineSuite([
             dataSourceCollection : dataSourceCollection,
             scene : scene
         });
-        var entity = new Entity();
         var result = new BoundingSphere();
         expect(function() {
             display.getBoundingSphere(undefined, false, result);

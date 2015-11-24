@@ -588,7 +588,7 @@ define([
     }
 
     /**
-     * A description of an ellipse on an ellipsoid.
+     * A description of an ellipse on an ellipsoid. Ellipse geometry can be rendered with both {@link Primitive} and {@link GroundPrimitive}.
      *
      * @alias EllipseGeometry
      * @constructor
@@ -600,18 +600,16 @@ define([
      * @param {Ellipsoid} [options.ellipsoid=Ellipsoid.WGS84] The ellipsoid the ellipse will be on.
      * @param {Number} [options.height=0.0] The height above the ellipsoid.
      * @param {Number} [options.extrudedHeight] The height of the extrusion.
-     * @param {Number} [options.rotation=0.0] The angle from north (clockwise) in radians.
-     * @param {Number} [options.stRotation=0.0] The rotation of the texture coordinates, in radians. A positive rotation is counter-clockwise.
+     * @param {Number} [options.rotation=0.0] The angle of rotation counter-clockwise from north.
+     * @param {Number} [options.stRotation=0.0] The rotation of the texture coordinates counter-clockwise from north.
      * @param {Number} [options.granularity=CesiumMath.RADIANS_PER_DEGREE] The angular distance between points on the ellipse in radians.
      * @param {VertexFormat} [options.vertexFormat=VertexFormat.DEFAULT] The vertex attributes to be computed.
      *
      * @exception {DeveloperError} semiMajorAxis and semiMinorAxis must be greater than zero.
-     * @exception {DeveloperError} semiMajorAxis must be larger than the semiMinorAxis.
+     * @exception {DeveloperError} semiMajorAxis must be greater than or equal to the semiMinorAxis.
      * @exception {DeveloperError} granularity must be greater than zero.
      *
      * @see EllipseGeometry.createGeometry
-     *
-     * @demo {@link http://cesiumjs.org/Cesium/Apps/Sandcastle/index.html?src=Ellipse.html|Cesium Sandcastle Ellipse Demo}
      *
      * @example
      * // Create an ellipse.
@@ -650,7 +648,7 @@ define([
             throw new DeveloperError('Semi-major and semi-minor axes must be greater than zero.');
         }
         if (semiMajorAxis < semiMinorAxis) {
-            throw new DeveloperError('semiMajorAxis must be larger than the semiMinorAxis.');
+            throw new DeveloperError('semiMajorAxis must be greater than or equal to the semiMinorAxis.');
         }
         if (granularity <= 0.0) {
             throw new DeveloperError('granularity must be greater than zero.');
@@ -681,7 +679,7 @@ define([
      * Stores the provided instance into the provided array.
      * @function
      *
-     * @param {Object} value The value to pack.
+     * @param {EllipseGeometry} value The value to pack.
      * @param {Number[]} array The array to pack into.
      * @param {Number} [startingIndex=0] The index into the array at which to start packing the elements.
      */
@@ -738,6 +736,7 @@ define([
      * @param {Number[]} array The packed array.
      * @param {Number} [startingIndex=0] The starting index of the element to be unpacked.
      * @param {EllipseGeometry} [result] The object into which to store the result.
+     * @returns {EllipseGeometry} The modified result parameter or a new EllipseGeometry instance if one was not provided.
      */
     EllipseGeometry.unpack = function(array, startingIndex, result) {
         //>>includeStart('debug', pragmas.debug);
@@ -826,6 +825,29 @@ define([
             indices : geometry.indices,
             primitiveType : PrimitiveType.TRIANGLES,
             boundingSphere : geometry.boundingSphere
+        });
+    };
+
+    /**
+     * @private
+     */
+    EllipseGeometry.createShadowVolume = function(ellipseGeometry, minHeightFunc, maxHeightFunc) {
+        var granularity = ellipseGeometry._granularity;
+        var ellipsoid = ellipseGeometry._ellipsoid;
+
+        var minHeight = minHeightFunc(granularity, ellipsoid);
+        var maxHeight = maxHeightFunc(granularity, ellipsoid);
+
+        return new EllipseGeometry({
+            center : ellipseGeometry._center,
+            semiMajorAxis : ellipseGeometry._semiMajorAxis,
+            semiMinorAxis : ellipseGeometry._semiMinorAxis,
+            ellipsoid : ellipsoid,
+            stRotation : ellipseGeometry._stRotation,
+            granularity : granularity,
+            extrudedHeight : minHeight,
+            height : maxHeight,
+            vertexFormat : VertexFormat.POSITION_ONLY
         });
     };
 

@@ -46,7 +46,6 @@ defineSuite([
         createDynamicProperty,
         createScene) {
     "use strict";
-    /*global jasmine,describe,xdescribe,it,xit,expect,beforeEach,afterEach,beforeAll,afterAll,spyOn*/
 
     var scene;
     var time;
@@ -320,6 +319,26 @@ defineSuite([
         expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(outline.getValue(time2)));
     });
 
+    it('createFillGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicPolylineVolume();
+        entity.show = false;
+        entity.polylineVolume.fill = true;
+        var updater = new PolylineVolumeGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
+    it('createOutlineGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicPolylineVolume();
+        entity.show = false;
+        entity.polylineVolume.outline = true;
+        var updater = new PolylineVolumeGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
     it('dynamic updater sets properties', function() {
         var polylineVolume = new PolylineVolumeGraphics();
         polylineVolume.positions = createDynamicProperty(Cartesian3.fromRadiansArray([
@@ -353,6 +372,11 @@ defineSuite([
         expect(options.shapePositions).toEqual(polylineVolume.shape.getValue());
         expect(options.granularity).toEqual(polylineVolume.granularity.getValue());
         expect(options.cornerType).toEqual(polylineVolume.cornerType.getValue());
+
+        entity.show = false;
+        dynamicUpdater.update(JulianDate.now());
+        expect(primitives.length).toBe(0);
+        entity.show = true;
 
         //If a dynamic show returns false, the primitive should go away.
         polylineVolume.show.setValue(false);

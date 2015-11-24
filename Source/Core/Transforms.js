@@ -433,7 +433,7 @@ define([
      * @example
      * //Set the view to in the inertial frame.
      * scene.preRender.addEventListener(function(scene, time) {
-     *    var now = new Cesium.JulianDate();
+     *    var now = Cesium.JulianDate.now();
      *    var offset = Cesium.Matrix4.multiplyByPoint(camera.transform, camera.position, new Cesium.Cartesian3());
      *    var transform = Cesium.Matrix4.fromRotationTranslation(Cesium.Transforms.computeTemeToPseudoFixedMatrix(now));
      *    var inverseTransform = Cesium.Matrix4.inverseTransformation(transform, new Cesium.Matrix4());
@@ -523,7 +523,7 @@ define([
      * indicates that the preload has completed.
      *
      * @param {TimeInterval} timeInterval The interval to preload.
-     * @returns {Promise} A promise that, when resolved, indicates that the preload has completed
+     * @returns {Promise.<undefined>} A promise that, when resolved, indicates that the preload has completed
      *          and evaluation of the transformation between the fixed and ICRF axes will
      *          no longer return undefined for a time inside the interval.
      *
@@ -533,7 +533,7 @@ define([
      *
      * @example
      * var interval = new Cesium.TimeInterval(...);
-     * when(preloadIcrfFixed(interval), function() {
+     * when(Cesium.Transforms.preloadIcrfFixed(interval), function() {
      *     // the data is now loaded
      * });
      */
@@ -614,7 +614,7 @@ define([
      *
      * @example
      * // Transform a point from the ICRF axes to the Fixed axes.
-     * var now = new Cesium.JulianDate();
+     * var now = Cesium.JulianDate.now();
      * var pointInFixed = Cesium.Cartesian3.fromDegrees(0.0, 0.0);
      * var fixedToIcrf = Cesium.Transforms.computeIcrfToFixedMatrix(now);
      * var pointInInertial = new Cesium.Cartesian3();
@@ -771,6 +771,51 @@ define([
         Cartesian4.multiplyByScalar(tmp, 1.0 / tmp.w, tmp);
         Matrix4.multiplyByVector(viewportTransformation, tmp, tmp);
         return Cartesian2.fromCartesian4(tmp, result);
+    };
+
+    var normalScratch = new Cartesian3();
+    var rightScratch = new Cartesian3();
+    var upScratch = new Cartesian3();
+
+    /**
+     * @private
+     */
+    Transforms.rotationMatrixFromPositionVelocity = function(position, velocity, ellipsoid, result) {
+        //>>includeStart('debug', pragmas.debug);
+        if (!defined(position)) {
+            throw new DeveloperError('position is required.');
+        }
+
+        if (!defined(velocity)) {
+            throw new DeveloperError('velocity is required.');
+        }
+        //>>includeEnd('debug');
+
+        var normal = defaultValue(ellipsoid, Ellipsoid.WGS84).geodeticSurfaceNormal(position, normalScratch);
+        var right = Cartesian3.cross(velocity, normal, rightScratch);
+        if (Cartesian3.equalsEpsilon(right, Cartesian3.ZERO, CesiumMath.EPSILON6)) {
+            right = Cartesian3.clone(Cartesian3.UNIT_X, right);
+        }
+
+        var up = Cartesian3.cross(right, velocity, upScratch);
+        Cartesian3.cross(velocity, up, right);
+        Cartesian3.negate(right, right);
+
+        if (!defined(result)) {
+            result = new Matrix3();
+        }
+
+        result[0] = velocity.x;
+        result[1] = velocity.y;
+        result[2] = velocity.z;
+        result[3] = right.x;
+        result[4] = right.y;
+        result[5] = right.z;
+        result[6] = up.x;
+        result[7] = up.y;
+        result[8] = up.z;
+
+        return result;
     };
 
     return Transforms;

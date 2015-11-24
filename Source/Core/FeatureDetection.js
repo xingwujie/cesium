@@ -137,6 +137,18 @@ define([
         return isFirefox() && firefoxVersionResult;
     }
 
+    var hasPointerEvents;
+    function supportsPointerEvents() {
+        if (!defined(hasPointerEvents)) {
+            //While window.navigator.pointerEnabled is deprecated in the W3C specification
+            //we still need to use it if it exists in order to support browsers
+            //that rely on it, such as the Windows WebBrowser control which defines
+            //window.PointerEvent but sets window.navigator.pointerEnabled to false.
+            hasPointerEvents = defined(window.PointerEvent) && (!defined(window.navigator.pointerEnabled) || window.navigator.pointerEnabled);
+        }
+        return hasPointerEvents;
+    }
+
     /**
      * A set of functions to detect whether the current browser supports
      * various features.
@@ -156,13 +168,14 @@ define([
         isFirefox : isFirefox,
         firefoxVersion : firefoxVersion,
         isWindows : isWindows,
-        hardwareConcurrency : defaultValue(navigator.hardwareConcurrency, 3)
+        hardwareConcurrency : defaultValue(navigator.hardwareConcurrency, 3),
+        supportsPointerEvents : supportsPointerEvents
     };
 
     /**
      * Detects whether the current browser supports the full screen standard.
      *
-     * @returns true if the browser supports the full screen standard, false if not.
+     * @returns {Boolean} true if the browser supports the full screen standard, false if not.
      *
      * @see Fullscreen
      * @see {@link http://dvcs.w3.org/hg/fullscreen/raw-file/tip/Overview.html|W3C Fullscreen Living Specification}
@@ -174,7 +187,7 @@ define([
     /**
      * Detects whether the current browser supports typed arrays.
      *
-     * @returns true if the browser supports typed arrays, false if not.
+     * @returns {Boolean} true if the browser supports typed arrays, false if not.
      *
      * @see {@link http://www.khronos.org/registry/typedarray/specs/latest/|Typed Array Specification}
      */
@@ -185,7 +198,7 @@ define([
     /**
      * Detects whether the current browser supports Web Workers.
      *
-     * @returns true if the browsers supports Web Workers, false if not.
+     * @returns {Boolean} true if the browsers supports Web Workers, false if not.
      *
      * @see {@link http://www.w3.org/TR/workers/}
      */

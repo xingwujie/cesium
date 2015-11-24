@@ -39,6 +39,7 @@ define([
     var defaultAlignedAxis = Cartesian3.ZERO;
     var defaultHorizontalOrigin = HorizontalOrigin.CENTER;
     var defaultVerticalOrigin = VerticalOrigin.CENTER;
+    var defaultSizeInMeters = false;
 
     var position = new Cartesian3();
     var color = new Color();
@@ -105,7 +106,7 @@ define([
             var billboardGraphics = entity._billboard;
             var textureValue;
             var billboard = item.billboard;
-            var show = entity.isAvailable(time) && Property.getValueOrDefault(billboardGraphics._show, time, true);
+            var show = entity.isShowing && entity.isAvailable(time) && Property.getValueOrDefault(billboardGraphics._show, time, true);
 
             if (show) {
                 position = Property.getValueOrUndefined(entity._position, time, position);
@@ -158,6 +159,7 @@ define([
             billboard.scaleByDistance = Property.getValueOrUndefined(billboardGraphics._scaleByDistance, time, scaleByDistance);
             billboard.translucencyByDistance = Property.getValueOrUndefined(billboardGraphics._translucencyByDistance, time, translucencyByDistance);
             billboard.pixelOffsetScaleByDistance = Property.getValueOrUndefined(billboardGraphics._pixelOffsetScaleByDistance, time, pixelOffsetScaleByDistance);
+            billboard.sizeInMeters = Property.getValueOrDefault(billboardGraphics._sizeInMeters, defaultSizeInMeters);
 
             var subRegion = Property.getValueOrUndefined(billboardGraphics._imageSubRegion, time, boundingRectangle);
             if (defined(subRegion)) {

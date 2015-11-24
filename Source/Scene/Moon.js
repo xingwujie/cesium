@@ -82,6 +82,7 @@ define([
         this._ellipsoidPrimitive = new EllipsoidPrimitive({
             radii : this.ellipsoid.radii,
             material : Material.fromType(Material.ImageType),
+            depthTestEnabled : false,
             _owner : this
         });
         this._ellipsoidPrimitive.material.translucent = false;
@@ -110,11 +111,12 @@ define([
     var icrfToFixed = new Matrix3();
     var rotationScratch = new Matrix3();
     var translationScratch = new Cartesian3();
+    var scratchCommandList = [];
 
     /**
      * @private
      */
-    Moon.prototype.update = function(context, frameState, commandList) {
+    Moon.prototype.update = function(frameState) {
         if (!this.show) {
             return;
         }
@@ -136,7 +138,13 @@ define([
         Matrix3.multiplyByVector(icrfToFixed, translation, translation);
 
         Matrix4.fromRotationTranslation(rotation, translation, ellipsoidPrimitive.modelMatrix);
-        ellipsoidPrimitive.update(context, frameState, commandList);
+
+        var savedCommandList = frameState.commandList;
+        frameState.commandList = scratchCommandList;
+        scratchCommandList.length = 0;
+        ellipsoidPrimitive.update(frameState);
+        frameState.commandList = savedCommandList;
+        return (scratchCommandList.length === 1) ? scratchCommandList[0] : undefined;
     };
 
     /**

@@ -22,7 +22,6 @@ defineSuite([
         CesiumMath,
         Quaternion) {
     "use strict";
-    /*global jasmine,describe,xdescribe,it,xit,expect,beforeEach,afterEach,beforeAll,afterAll,spyOn*/
 
     it('constructor sets expected defaults', function() {
         var property = new SampledProperty(Cartesian3);
@@ -714,6 +713,14 @@ defineSuite([
         expect(property.getValue(time2)).toBe(1);
         expect(property.getValue(time3)).toBe(2);
         expect(property.getValue(time4)).toBeUndefined();
+    });
+
+    it('getValue returns undefined for empty extrapolated property', function() {
+        var sampledPosition = new SampledProperty(Cartesian3);
+        sampledPosition.backwardExtrapolationType = ExtrapolationType.HOLD;
+        sampledPosition.forwardExtrapolationType = ExtrapolationType.HOLD;
+        var result = sampledPosition.getValue(JulianDate.now());
+        expect(result).toBeUndefined();
     });
 
     it('raises definitionChanged when extrapolation options change', function() {

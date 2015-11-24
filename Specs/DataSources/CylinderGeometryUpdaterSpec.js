@@ -46,7 +46,6 @@ defineSuite([
         createDynamicProperty,
         createScene) {
     "use strict";
-    /*global jasmine,describe,xdescribe,it,xit,expect,beforeEach,afterEach,beforeAll,afterAll,spyOn*/
 
     var scene;
     var time;
@@ -357,6 +356,26 @@ defineSuite([
         expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(outline.getValue(time2)));
     });
 
+    it('createFillGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicCylinder();
+        entity.show = false;
+        entity.cylinder.fill = true;
+        var updater = new CylinderGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
+    it('createOutlineGeometryInstance obeys Entity.show is false.', function() {
+        var entity = createBasicCylinder();
+        entity.show = false;
+        entity.cylinder.outline = true;
+        var updater = new CylinderGeometryUpdater(entity, scene);
+        var instance = updater.createFillGeometryInstance(new JulianDate());
+        var attributes = instance.attributes;
+        expect(attributes.show.value).toEqual(ShowGeometryInstanceAttribute.toValue(false));
+    });
+
     it('dynamic updater sets properties', function() {
         var cylinder = new CylinderGraphics();
         cylinder.show = createDynamicProperty(true);
@@ -383,6 +402,11 @@ defineSuite([
         expect(dynamicUpdater._options.id).toBe(entity);
         expect(dynamicUpdater._options.topRadius).toEqual(cylinder.topRadius.getValue());
         expect(dynamicUpdater._options.bottomRadius).toEqual(cylinder.bottomRadius.getValue());
+
+        entity.show = false;
+        dynamicUpdater.update(JulianDate.now());
+        expect(primitives.length).toBe(0);
+        entity.show = true;
 
         cylinder.show.setValue(false);
         dynamicUpdater.update(JulianDate.now());

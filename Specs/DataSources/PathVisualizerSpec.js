@@ -4,6 +4,7 @@ defineSuite([
         'Core/Cartesian3',
         'Core/Color',
         'Core/JulianDate',
+        'Core/Matrix4',
         'Core/ReferenceFrame',
         'Core/TimeInterval',
         'DataSources/CompositePositionProperty',
@@ -17,12 +18,14 @@ defineSuite([
         'DataSources/SampledPositionProperty',
         'DataSources/ScaledPositionProperty',
         'DataSources/TimeIntervalCollectionPositionProperty',
+        'Scene/SceneMode',
         'Specs/createScene'
     ], function(
         PathVisualizer,
         Cartesian3,
         Color,
         JulianDate,
+        Matrix4,
         ReferenceFrame,
         TimeInterval,
         CompositePositionProperty,
@@ -36,9 +39,9 @@ defineSuite([
         SampledPositionProperty,
         ScaledPositionProperty,
         TimeIntervalCollectionPositionProperty,
+        SceneMode,
         createScene) {
     "use strict";
-    /*global jasmine,describe,xdescribe,it,xit,expect,beforeEach,afterEach,beforeAll,afterAll,spyOn*/
 
     var scene;
     var visualizer;
@@ -263,6 +266,51 @@ defineSuite([
 
         visualizer.update(time);
         expect(polylineCollection.length).toEqual(1);
+    });
+
+    it('Switches from inertial to fixed paths in 2D', function() {
+        var times = [new JulianDate(0, 0), new JulianDate(1, 0)];
+        var time = new JulianDate(0.5, 0);
+        var positions = [new Cartesian3(1234, 5678, 9101112), new Cartesian3(5678, 1234, 1101112)];
+
+        var position = new SampledPositionProperty(ReferenceFrame.INERTIAL);
+        position.addSamples(times, positions);
+
+        var entityCollection = new EntityCollection();
+        visualizer = new PathVisualizer(scene, entityCollection);
+        var testObject = entityCollection.getOrCreateEntity('test');
+        testObject.position = position;
+        testObject.path = new PathGraphics();
+        testObject.path.leadTime = new ConstantProperty(25);
+        testObject.path.trailTime = new ConstantProperty(10);
+
+        visualizer.update(time);
+
+        expect(scene.primitives.length).toEqual(1);
+
+        //They'll be one inertial polyline collection
+        var inertialPolylineCollection = scene.primitives.get(0);
+        expect(inertialPolylineCollection.length).toEqual(1);
+        expect(inertialPolylineCollection.modelMatrix).not.toEqual(Matrix4.IDENTITY);
+
+        var inertialLine = inertialPolylineCollection.get(0);
+        expect(inertialLine.show).toEqual(true);
+
+        scene.mode = SceneMode.SCENE2D;
+        visualizer.update(time);
+
+        //They'll be one inertial polyline collection (with no visible lines)
+        //and a new fixed polyline collection.
+        expect(scene.primitives.length).toEqual(2);
+
+        var fixedPolylineCollection = scene.primitives.get(1);
+
+        expect(inertialLine.show).toEqual(false);
+        expect(fixedPolylineCollection.length).toEqual(1);
+        expect(fixedPolylineCollection.modelMatrix).toEqual(Matrix4.IDENTITY);
+
+        var fixedLine = fixedPolylineCollection.get(0);
+        expect(fixedLine.show).toEqual(true);
     });
 
     it('clear hides primitives.', function() {

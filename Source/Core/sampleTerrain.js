@@ -26,12 +26,12 @@ define([
      * @param {TerrainProvider} terrainProvider The terrain provider from which to query heights.
      * @param {Number} level The terrain level-of-detail from which to query terrain heights.
      * @param {Cartographic[]} positions The positions to update with terrain heights.
-     * @returns {Promise} A promise that resolves to the provided list of positions when terrain the query has completed.
+     * @returns {Promise.<Cartographic[]>} A promise that resolves to the provided list of positions when terrain the query has completed.
      *
      * @example
      * // Query the terrain height of two Cartographic positions
      * var terrainProvider = new Cesium.CesiumTerrainProvider({
-     *     url : '//cesiumjs.org/stk-terrain/world'
+     *     url : '//assets.agi.com/stk-terrain/world'
      * });
      * var positions = [
      *     Cesium.Cartographic.fromDegrees(86.925145, 27.988257),

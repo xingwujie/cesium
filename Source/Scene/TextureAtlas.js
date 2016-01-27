@@ -10,6 +10,7 @@ define([
         '../Core/DeveloperError',
         '../Core/loadImage',
         '../Core/PixelFormat',
+        '../Core/RequestScheduler',
         '../Core/RuntimeError',
         '../Renderer/Framebuffer',
         '../Renderer/RenderState',
@@ -26,6 +27,7 @@ define([
         DeveloperError,
         loadImage,
         PixelFormat,
+        RequestScheduler,
         RuntimeError,
         Framebuffer,
         RenderState,
@@ -382,7 +384,7 @@ define([
             //>>includeEnd('debug');
         } else if (typeof image === 'string') {
             // if image is a string, load it as an image
-            image = loadImage(image);
+            image = RequestScheduler.request(image, loadImage);
         }
 
         var that = this;

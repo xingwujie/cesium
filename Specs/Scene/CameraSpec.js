@@ -131,6 +131,24 @@ defineSuite([
         expect(expected).toEqual(camera.inverseTransform);
     });
 
+    it('Computes orthonormal direction, up, and right vectors', function() {
+        camera.direction = new Cartesian3(-0.32297853365047874, 0.9461560708446421, 0.021761351171635013);
+        camera.up = new Cartesian3(0.9327219113001013, 0.31839266745173644, -2.9874778345595487e-10);
+        camera.right = new Cartesian3(0.0069286549295528715, -0.020297288960790985, 0.9853344956450351);
+
+        expect(Cartesian3.magnitude(camera.right)).not.toEqualEpsilon(1.0, CesiumMath.EPSILON8);
+        expect(Cartesian3.magnitude(camera.up)).not.toEqualEpsilon(1.0, CesiumMath.EPSILON8);
+
+        // Trigger updateMembers which normalizes the axes
+        var viewMatrix = camera.viewMatrix;
+        expect(Cartesian3.magnitude(camera.right)).toEqualEpsilon(1.0, CesiumMath.EPSILON8);
+        expect(Cartesian3.magnitude(camera.up)).toEqualEpsilon(1.0, CesiumMath.EPSILON8);
+
+        var inverseAffine = Matrix4.inverseTransformation(viewMatrix, new Matrix4());
+        var inverse = Matrix4.inverse(viewMatrix, new Matrix4());
+        expect(inverseAffine).toEqualEpsilon(inverse, CesiumMath.EPSILON8);
+    });
+
     it('get heading is undefined when morphing', function() {
         camera._mode = SceneMode.MORPHING;
         expect(camera.heading).not.toBeDefined();
@@ -1772,9 +1790,6 @@ defineSuite([
         var p = camera.pickEllipsoid(windowCoord);
         var c = ellipsoid.cartesianToCartographic(p);
         expect(c).toEqual(new Cartographic(0.0, 0.0, 0.0));
-
-        p = camera.pickEllipsoid(Cartesian2.ZERO);
-        expect(p).toBeUndefined();
     });
 
     it('pick rotated map in 2D', function() {
@@ -1937,7 +1952,7 @@ defineSuite([
         expect(camera.createCorrectPositionTween(0.05)).not.toBeDefined();
     });
 
-    it('animates position to visible map in 2D', function() {
+    it('does not animate in 2D', function() {
         var frustum = new OrthographicFrustum();
         frustum.near = 1.0;
         frustum.far = 2.0;
@@ -1953,70 +1968,11 @@ defineSuite([
         var factor = 1000.0;
         var dx = max.x * factor;
         var dy = max.y * factor;
-        var tweens = new TweenCollection();
 
         camera.moveUp(dy);
         camera.moveRight(dx);
 
-        var correctAnimation = camera.createCorrectPositionTween(0.05);
-        expect(correctAnimation).toBeDefined();
-        var animation = tweens.add(correctAnimation);
-        while(tweens.contains(animation)) {
-            tweens.update();
-        }
-
-        expect(camera.position.x).toEqual(max.x);
-        expect(camera.position.y).toEqual(max.y);
-
-        camera.moveDown(dy);
-        camera.moveLeft(dx);
-
-        correctAnimation = camera.createCorrectPositionTween(0.05);
-        expect(correctAnimation).toBeDefined();
-        animation = tweens.add(correctAnimation);
-        while(tweens.contains(animation)) {
-            tweens.update();
-        }
-
-        expect(camera.position.x).toEqual(-max.x);
-        expect(camera.position.y).toEqual(-max.y);
-    });
-
-    it('animates frustum in 2D', function() {
-        var frustum = new OrthographicFrustum();
-        frustum.near = 1.0;
-        frustum.far = 2.0;
-        frustum.left = -2.0;
-        frustum.right = 2.0;
-        frustum.top = 1.0;
-        frustum.bottom = -1.0;
-        camera.frustum = frustum;
-
-        camera.update(SceneMode.SCENE2D);
-
-        var max = scene.mapProjection.project(new Cartographic(Math.PI, CesiumMath.toRadians(85.05112878)));
-        var factor = 1000.0;
-        var dx = max.x * factor;
-        var tweens = new TweenCollection();
-
-        camera.zoomOut(dx);
-
-        var right = frustum.right;
-        var top = frustum.top;
-
-        var correctAnimation = camera.createCorrectPositionTween(0.05);
-        expect(correctAnimation).toBeDefined();
-        var animation = tweens.add(correctAnimation);
-        while(tweens.contains(animation)) {
-            tweens.update();
-        }
-
-        expect(frustum.right).toBeLessThan(right);
-        expect(frustum.right).toBeGreaterThan(max.x);
-        expect(frustum.left).toEqual(-frustum.right);
-        expect(frustum.top).toBeLessThan(top);
-        expect(frustum.top).toBeGreaterThan(max.y);
-        expect(frustum.bottom).toEqual(-frustum.top);
+        expect(camera.createCorrectPositionTween(0.05)).not.toBeDefined();
     });
 
     it('animates position to visible map in Columbus view', function() {
@@ -2427,6 +2383,69 @@ defineSuite([
 
         var rect = camera.computeViewRectangle();
         expect(rect).not.toBeDefined();
+    });
+
+    it('flyTo rectangle in 2D', function() {
+        var tweenSpy = spyOn(CameraFlightPath, 'createTween');
+        spyOn(scene.tweens, 'add');
+
+        camera._mode = SceneMode.SCENE2D;
+
+        var frustum = new OrthographicFrustum();
+        frustum.left = -10.0;
+        frustum.right = 10.0;
+        frustum.bottom = -10.0;
+        frustum.top = 10.0;
+        frustum.near = 1.0;
+        frustum.far = 21.0;
+        camera.frustum = frustum;
+
+        var west = 0.3323436621771766;
+        var south = 0.8292930502744068;
+        var east = 0.3325710961342694;
+        var north = 0.8297059734014236;
+        var rectangle = new Rectangle(west, south, east, north);
+
+        var expectedDestination = camera.getRectangleCameraCoordinates(rectangle);
+        camera.flyTo({destination : rectangle});
+
+        expect(tweenSpy.calls.mostRecent().args[1].destination.equalsEpsilon(expectedDestination, 0.1)).toBe(true);
+    });
+
+    it('flyTo rectangle in CV', function() {
+        var tweenSpy = spyOn(CameraFlightPath, 'createTween');
+        spyOn(scene.tweens, 'add');
+
+        camera._mode = SceneMode.COLUMBUS_VIEW;
+
+        var west = 0.3323436621771766;
+        var south = 0.8292930502744068;
+        var east = 0.3325710961342694;
+        var north = 0.8297059734014236;
+        var rectangle = new Rectangle(west, south, east, north);
+
+        var expectedDestination = camera.getRectangleCameraCoordinates(rectangle);
+        camera.flyTo({destination : rectangle});
+
+        expect(tweenSpy.calls.mostRecent().args[1].destination.equalsEpsilon(expectedDestination, 0.1)).toBe(true);
+    });
+
+    it('flyTo rectangle in 3D', function() {
+        var tweenSpy = spyOn(CameraFlightPath, 'createTween');
+        spyOn(scene.tweens, 'add');
+
+        camera._mode = SceneMode.SCENE3D;
+
+        var west = 0.3323436621771766;
+        var south = 0.8292930502744068;
+        var east = 0.3325710961342694;
+        var north = 0.8297059734014236;
+        var rectangle = new Rectangle(west, south, east, north);
+
+        var expectedDestination = camera.getRectangleCameraCoordinates(rectangle);
+        camera.flyTo({destination : rectangle});
+
+        expect(tweenSpy.calls.mostRecent().args[1].destination.equalsEpsilon(expectedDestination, 0.1)).toBe(true);
     });
 
     it('flyTo does not zoom closer than minimumZoomDistance', function() {

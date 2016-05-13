@@ -301,10 +301,10 @@ define([
         this.cullingVolume = undefined;
     }
 
-    function createRenderState(colorMask, bias) {
+    function createRenderState(colorMask, bias, isTerrain) {
         return RenderState.fromCache({
             cull : {
-                enabled : true,
+                enabled : !isTerrain,
                 face : CullFace.BACK
             },
             depthTest : {
@@ -328,9 +328,9 @@ define([
     function createRenderStates(shadowMap) {
         // Enable the color mask if the shadow map is backed by a color texture, e.g. when depth textures aren't supported
         var colorMask = !shadowMap._usesDepthTexture;
-        shadowMap._primitiveRenderState = createRenderState(colorMask, shadowMap._primitiveBias);
-        shadowMap._terrainRenderState = createRenderState(colorMask, shadowMap._terrainBias);
-        shadowMap._pointRenderState = createRenderState(colorMask, shadowMap._pointBias);
+        shadowMap._primitiveRenderState = createRenderState(colorMask, shadowMap._primitiveBias, false);
+        shadowMap._terrainRenderState = createRenderState(colorMask, shadowMap._terrainBias, true);
+        shadowMap._pointRenderState = createRenderState(colorMask, shadowMap._pointBias, false);
     }
 
     /**

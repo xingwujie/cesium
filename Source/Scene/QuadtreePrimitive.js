@@ -505,8 +505,7 @@ define([
     }
 
     function screenSpaceError(primitive, frameState, tile) {
-        // TODO: check for sseDenominator so shadow cameras with orthographic frustum works. check correctness.
-        if (frameState.mode === SceneMode.SCENE2D || !defined(frameState.camera.frustum.sseDenominator)) {
+        if (frameState.mode === SceneMode.SCENE2D) {
             return screenSpaceError2D(primitive, frameState, tile);
         }
 
@@ -515,6 +514,11 @@ define([
         var distance = tile._distance;
         var height = frameState.context.drawingBufferHeight;
         var sseDenominator = frameState.camera.frustum.sseDenominator;
+
+        if (!defined(sseDenominator)) {
+            // TODO: use correct sse denominator
+            sseDenominator = 1.0;
+        }
 
         var error = (maxGeometricError * height) / (distance * sseDenominator);
 

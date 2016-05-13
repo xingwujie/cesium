@@ -1779,21 +1779,6 @@ define([
         }
     }
 
-    function getTerrainShadowCommands(scene) {
-        // TODO : Temporary for testing. Globe.update doesn't work currently.
-        var terrainCommands = [];
-        var commandList = scene.frameState.commandList;
-        var length = commandList.length;
-        for (var i = 0; i < length; ++i) {
-            var command = commandList[i];
-            if (command.castShadows && command.pass === Pass.GLOBE) {
-                terrainCommands.push(command);
-            }
-        }
-
-        return terrainCommands;
-    }
-
     function executeShadowMapCastCommands(scene) {
         var frameState = scene.frameState;
         var shadowMaps = frameState.shadowMaps;
@@ -1825,8 +1810,7 @@ define([
             insertShadowCastCommands(scene, sceneCommands, false, shadowMap);
 
             // Insert the globe commands into the command lists
-            //var globeCommands = shadowMap.commandList;
-            var globeCommands = getTerrainShadowCommands(scene);
+            var globeCommands = shadowMap.commandList;
             insertShadowCastCommands(scene, globeCommands, true, shadowMap);
 
             for (j = 0; j < numberOfPasses; ++j) {

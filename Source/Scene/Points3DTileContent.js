@@ -143,6 +143,9 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Points3DTileContent.prototype.initialize = function(arrayBuffer, byteOffset) {
+        // Destroy expired resources if they exist.
+        destroyResources(this);
+
         byteOffset = defaultValue(byteOffset, 0);
 
         var uint8Array = new Uint8Array(arrayBuffer);
@@ -318,6 +321,10 @@ define([
         this._primitive.update(frameState);
     };
 
+    function destroyResources(content) {
+        content._primitive = content._primitive && content._primitive.destroy();
+    }
+
     /**
      * Part of the {@link Cesium3DTileContent} interface.
      */
@@ -329,7 +336,7 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Points3DTileContent.prototype.destroy = function() {
-        this._primitive = this._primitive && this._primitive.destroy();
+        destroyResources(this);
         return destroyObject(this);
     };
 

@@ -167,6 +167,9 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Instanced3DModel3DTileContent.prototype.initialize = function(arrayBuffer, byteOffset) {
+        // Destroy expired resources if they exist.
+        destroyResources(this);
+
         byteOffset = defaultValue(byteOffset, 0);
 
         var uint8Array = new Uint8Array(arrayBuffer);
@@ -320,6 +323,11 @@ define([
         frameState.addCommand = oldAddCommand;
     };
 
+    function destroyResources(content) {
+        content._modelInstanceCollection = content._modelInstanceCollection && content._modelInstanceCollection.destroy();
+        content.batchTableResources = content.batchTableResources && content.batchTableResources.destroy();
+    }
+
     /**
      * Part of the {@link Cesium3DTileContent} interface.
      */
@@ -331,9 +339,7 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Instanced3DModel3DTileContent.prototype.destroy = function() {
-        this._modelInstanceCollection = this._modelInstanceCollection && this._modelInstanceCollection.destroy();
-        this.batchTableResources = this.batchTableResources && this.batchTableResources.destroy();
-
+        destroyResources(this);
         return destroyObject(this);
     };
     return Instanced3DModel3DTileContent;

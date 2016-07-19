@@ -12,6 +12,7 @@ define([
         '../Core/Intersect',
         '../Core/isDataUri',
         '../Core/joinUrls',
+        '../Core/JulianDate',
         '../Core/loadJson',
         '../Core/Math',
         '../Core/Request',
@@ -20,6 +21,7 @@ define([
         '../ThirdParty/Uri',
         '../ThirdParty/when',
         './Cesium3DTile',
+        './Cesium3DTileContentState',
         './Cesium3DTileRefine',
         './Cesium3DTileStyleEngine',
         './CullingVolume',
@@ -37,6 +39,7 @@ define([
         Intersect,
         isDataUri,
         joinUrls,
+        JulianDate,
         loadJson,
         CesiumMath,
         Request,
@@ -45,6 +48,7 @@ define([
         Uri,
         when,
         Cesium3DTile,
+        Cesium3DTileContentState,
         Cesium3DTileRefine,
         Cesium3DTileStyleEngine,
         CullingVolume,
@@ -669,6 +673,11 @@ define([
             // If there is a parentTile, add the root of the currently loading tileset
             // to parentTile's children, and increment its numberOfChildrenWithoutContent
             if (defined(parentTile)) {
+                if (parentTile.children.length > 0) {
+                    // Unload the old subtree if it exists
+                    unloadExpiredSubtree(parentTile);
+                }
+
                 parentTile.children.push(rootTile);
                 ++parentTile.numberOfChildrenWithoutContent;
 
@@ -754,6 +763,13 @@ define([
         }
     }
 
+    function recheckRefinement(tile) {
+        var ancestor = getAncestorWithContent(tile);
+        if (defined(ancestor) && (ancestor.refine === Cesium3DTileRefine.REPLACE)) {
+            prepareRefiningTiles([ancestor]);
+        }
+    }
+
     function getScreenSpaceError(geometricError, tile, frameState) {
         // TODO: screenSpaceError2D like QuadtreePrimitive.js
         if (geometricError === 0.0) {
@@ -786,6 +802,68 @@ define([
 
     ///////////////////////////////////////////////////////////////////////////
 
+    var scratchJulianDate = new JulianDate();
+
+    function updateExpireDate(tile) {
+        if (defined(tile.expireDuration)) {
+            var expireDurationDate = JulianDate.now(scratchJulianDate);
+            JulianDate.addSeconds(expireDurationDate, tile.expireDuration, expireDurationDate);
+
+            if (defined(tile.expireDate)) {
+                if (JulianDate.lessThan(expireDurationDate, tile.expireDate)) {
+                    JulianDate.clone(expireDurationDate, tile.expireDate);
+                }
+            }
+        }
+    }
+
+    function unloadExpiredSubtree(tile) {
+        var stack = [];
+        stack.push(tile);
+        while (stack.length > 0) {
+            tile = stack.pop();
+            var children = tile.children;
+            var length = children.length;
+            for (var i = 0; i < length; ++i) {
+                var child = children[i];
+                child.destroy();
+                stack.push(child);
+            }
+        }
+        tile.children = [];
+        tile.unloadContent();
+    }
+
+    function unloadExpiredLeafTile(tile) {
+        tile.destroy();
+        var parent = tile.parent;
+        if (defined(parent)) {
+            var index = parent.children.indexOf(tile);
+            parent.children.splice(index, 1);
+            recheckRefinement(parent);
+        }
+    }
+
+    function unloadExpiredTile(tile) {
+        if (tile.children.length === 0) {
+            unloadExpiredLeafTile(tile);
+            return;
+        }
+
+        if (tile.hasContent) {
+            // When the tile is expired and the request fails, there is no longer any content to show.
+            // Unload the tile's old content and replace it with Empty3DTileContent.
+            tile.unloadContentAndMakeEmpty();
+            // Now that the tile is empty recheck its parent's refinement
+            recheckRefinement(tile.parent);
+        } else if (tile.hasTilesetContent) {
+            // When the tile is the root of an external tileset, unload the entire subtree
+            unloadExpiredSubtree(tile);
+            // Also destroy this tile
+            unloadExpiredLeafTile(tile);
+        }
+    }
+
     function requestContent(tileset, tile, outOfCore) {
         if (!outOfCore) {
             return;
@@ -794,15 +872,30 @@ define([
             return;
         }
 
+        var expired = (tile.content.state === Cesium3DTileContentState.EXPIRED);
+
         tile.requestContent();
 
-        if (!tile.contentUnloaded) {
+        // If the RequestScheduler is full, the content will remain in the UNLOADED or EXPIRED state.
+        // Otherwise, it will be in the LOADING state.
+        if (tile.content.state === Cesium3DTileContentState.LOADING) {
             var stats = tileset._statistics;
             ++stats.numberOfPendingRequests;
 
             var removeFunction = removeFromProcessingQueue(tileset, tile);
-            when(tile.content.contentReadyToProcessPromise).then(addToProcessingQueue(tileset, tile)).otherwise(removeFunction);
-            when(tile.content.readyPromise).then(removeFunction).otherwise(removeFunction);
+            when(tile.content.contentReadyToProcessPromise).then(function() {
+                // Content is loaded and ready to process
+                addToProcessingQueue(tileset, tile);
+                updateExpireDate(tile);
+            }).otherwise(removeFunction);
+
+            when(tile.content.readyPromise).then(removeFunction).otherwise(function() {
+                // The request failed
+                removeFunction();
+                if (expired) {
+                    unloadExpiredTile(tile);
+                }
+            });
         }
     }
 
@@ -894,6 +987,18 @@ define([
             // Tile is inside/intersects the view frustum.  How many pixels is its geometric error?
             var sse = getScreenSpaceError(t.geometricError, t, frameState);
             // PERFORMANCE_IDEA: refine also based on (1) occlusion/VMSSE and/or (2) center of viewport
+
+            // If the tile is expired, request new content
+            if (defined(t.expireDate)) {
+                var now = JulianDate.now(scratchJulianDate);
+                if (JulianDate.lessThan(now, t.expireDate)) {
+                    // Request new content
+                    if (t.contentReady && (t.hasContent || t.hasTilesetContent)) {
+                        t.content.state = Cesium3DTileContentState.EXPIRED;
+                        requestContent(tileset, t, outOfCore);
+                    }
+                }
+            }
 
             var children = t.children;
             var childrenLength = children.length;
@@ -1063,12 +1168,10 @@ define([
     ///////////////////////////////////////////////////////////////////////////
 
     function addToProcessingQueue(tileset, tile) {
-        return function() {
-            tileset._processingQueue.push(tile);
+        tileset._processingQueue.push(tile);
 
-            --tileset._statistics.numberOfPendingRequests;
-            ++tileset._statistics.numberProcessing;
-        };
+        --tileset._statistics.numberOfPendingRequests;
+        ++tileset._statistics.numberProcessing;
     }
 
     function removeFromProcessingQueue(tileset, tile) {

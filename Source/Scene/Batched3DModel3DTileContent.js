@@ -154,6 +154,9 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Batched3DModel3DTileContent.prototype.initialize = function(arrayBuffer, byteOffset) {
+        // Destroy expired resources if they exist.
+        destroyResources(this);
+
         var byteStart = defaultValue(byteOffset, 0);
         byteOffset = byteStart;
 
@@ -255,7 +258,12 @@ define([
         this._model.update(frameState);
 
         frameState.addCommand = oldAddCommand;
-   };
+    };
+
+    function destroyResources(content) {
+        content._model = content._model && content._model.destroy();
+        content.batchTableResources = content.batchTableResources && content.batchTableResources.destroy();
+    }
 
     /**
      * Part of the {@link Cesium3DTileContent} interface.
@@ -268,9 +276,7 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Batched3DModel3DTileContent.prototype.destroy = function() {
-        this._model = this._model && this._model.destroy();
-        this.batchTableResources = this.batchTableResources && this.batchTableResources.destroy();
-
+        destroyResources(this);
         return destroyObject(this);
     };
 

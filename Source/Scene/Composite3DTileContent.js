@@ -149,6 +149,9 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Composite3DTileContent.prototype.initialize = function(arrayBuffer, byteOffset) {
+        // Destroy expired resources if they exist.
+        destroyResources(this);
+
         byteOffset = defaultValue(byteOffset, 0);
 
         var uint8Array = new Uint8Array(arrayBuffer);
@@ -233,6 +236,14 @@ define([
         }
     };
 
+    function destroyResources(content) {
+        var contents = content._contents;
+        var length = contents.length;
+        for (var i = 0; i < length; ++i) {
+            contents[i].destroy();
+        }
+    }
+
     /**
      * Part of the {@link Cesium3DTileContent} interface.
      */
@@ -244,11 +255,7 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Composite3DTileContent.prototype.destroy = function() {
-        var contents = this._contents;
-        var length = contents.length;
-        for (var i = 0; i < length; ++i) {
-            contents[i].destroy();
-        }
+        destroyResources(this);
         return destroyObject(this);
     };
 

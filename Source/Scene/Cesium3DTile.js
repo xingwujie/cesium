@@ -13,6 +13,7 @@ define([
         '../Core/getExtensionFromUri',
         '../Core/Intersect',
         '../Core/joinUrls',
+        '../Core/JulianDate',
         '../Core/Matrix3',
         '../Core/Matrix4',
         '../Core/OrientedBoundingBox',
@@ -46,6 +47,7 @@ define([
         getExtensionFromUri,
         Intersect,
         joinUrls,
+        JulianDate,
         Matrix3,
         Matrix4,
         OrientedBoundingBox,
@@ -240,6 +242,30 @@ define([
          * @private
          */
         this.replacementNode = undefined;
+
+        var expire = header.expire;
+        var expireDuration;
+        var expireDate;
+        if (defined(expire)) {
+            expireDuration = expire.duration;
+            if (defined(expire.date)) {
+                expireDate = JulianDate.fromIso8601(expire.date);
+            }
+        }
+
+        /**
+         * The time in seconds after the tile's content is downloaded when the content expires and new content is requested.
+         *
+         * @type {Number}
+         */
+        this.expireDuration = expireDuration;
+
+        /**
+         * The date when the content expires and new content is requested.
+         *
+         * @type {JulianDate}
+         */
+        this.expireDate = expireDate;
 
         // Members that are updated every frame for tree traversal and rendering optimizations:
 
@@ -455,6 +481,15 @@ define([
 
         this._debugBoundingVolume = this._debugBoundingVolume && this._debugBoundingVolume.destroy();
         this._debugContentBoundingVolume = this._debugContentBoundingVolume && this._debugContentBoundingVolume.destroy();
+    };
+
+    Cesium3DTile.prototype.unloadContentAndMakeEmpty = function() {
+        this.hasContent = false;
+        this.hasTilesetContent = false;
+        this._createContent = function() {
+            return new Empty3DTileContent();
+        };
+        this.unloadContent();
     };
 
     /**

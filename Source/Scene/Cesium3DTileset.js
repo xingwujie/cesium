@@ -813,6 +813,8 @@ define([
                 if (JulianDate.lessThan(expireDurationDate, tile.expireDate)) {
                     JulianDate.clone(expireDurationDate, tile.expireDate);
                 }
+            } else {
+                tile.expireDate = JulianDate.clone(expireDurationDate);
             }
         }
     }

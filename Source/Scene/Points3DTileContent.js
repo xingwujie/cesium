@@ -125,12 +125,19 @@ define([
             type : RequestType.TILES3D,
             distance : distance
         }));
+
         if (defined(promise)) {
+            this.contentReadyToProcessPromise = when.defer();
+            this.readyPromise = when.defer();
+
+            console.log('requesting points: + ' + this._url);
+
             this.state = Cesium3DTileContentState.LOADING;
             promise.then(function(arrayBuffer) {
                 if (that.isDestroyed()) {
                     return when.reject('tileset is destroyed');
                 }
+                console.log('in here');
                 that.initialize(arrayBuffer);
             }).otherwise(function(error) {
                 that.state = Cesium3DTileContentState.FAILED;
@@ -143,6 +150,8 @@ define([
      * Part of the {@link Cesium3DTileContent} interface.
      */
     Points3DTileContent.prototype.initialize = function(arrayBuffer, byteOffset) {
+        console.log('init new data');
+
         // Destroy expired resources if they exist.
         destroyResources(this);
 
@@ -290,11 +299,13 @@ define([
 
         this._primitive = primitive;
         this.state = Cesium3DTileContentState.PROCESSING;
+        console.log('about to resolve processing promise');
         this.contentReadyToProcessPromise.resolve(this);
 
         var that = this;
 
         when(primitive.readyPromise).then(function(primitive) {
+            console.log('ready promise resolves');
             that.state = Cesium3DTileContentState.READY;
             that.readyPromise.resolve(that);
         }).otherwise(function(error) {
@@ -318,7 +329,9 @@ define([
         // In the PROCESSING state we may be calling update() to move forward
         // the content's resource loading.  In the READY state, it will
         // actually generate commands.
-        this._primitive.update(frameState);
+        if (defined(this._primitive)) {
+            this._primitive.update(frameState);
+        }
     };
 
     function destroyResources(content) {

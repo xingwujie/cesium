@@ -805,17 +805,20 @@ define([
     var scratchJulianDate = new JulianDate();
 
     function updateExpireDate(tile) {
+        console.log('update expire date');
         if (defined(tile.expireDuration)) {
             var expireDurationDate = JulianDate.now(scratchJulianDate);
             JulianDate.addSeconds(expireDurationDate, tile.expireDuration, expireDurationDate);
 
             if (defined(tile.expireDate)) {
-                if (JulianDate.lessThan(expireDurationDate, tile.expireDate)) {
+                if (JulianDate.lessThan(tile.expireDate, expireDurationDate)) {
                     JulianDate.clone(expireDurationDate, tile.expireDate);
                 }
             } else {
                 tile.expireDate = JulianDate.clone(expireDurationDate);
             }
+            console.log(JulianDate.now(scratchJulianDate).toString());
+            console.log(tile.expireDate.toString());
         }
     }
 
@@ -870,6 +873,7 @@ define([
         if (!outOfCore) {
             return;
         }
+
         if (!tile.canRequestContent()) {
             return;
         }
@@ -881,17 +885,25 @@ define([
         // If the RequestScheduler is full, the content will remain in the UNLOADED or EXPIRED state.
         // Otherwise, it will be in the LOADING state.
         if (tile.content.state === Cesium3DTileContentState.LOADING) {
+
+            // Hack
+            if (expired) {
+                addToProcessingQueue(tileset, tile);
+            }
+
             var stats = tileset._statistics;
             ++stats.numberOfPendingRequests;
-
             var removeFunction = removeFromProcessingQueue(tileset, tile);
             when(tile.content.contentReadyToProcessPromise).then(function() {
                 // Content is loaded and ready to process
-                addToProcessingQueue(tileset, tile);
+                if (!expired) {
+                    addToProcessingQueue(tileset, tile);
+                }
                 updateExpireDate(tile);
             }).otherwise(removeFunction);
 
             when(tile.content.readyPromise).then(removeFunction).otherwise(function() {
+                console.log('DESTROYED');
                 // The request failed
                 removeFunction();
                 if (expired) {
@@ -993,9 +1005,12 @@ define([
             // If the tile is expired, request new content
             if (defined(t.expireDate)) {
                 var now = JulianDate.now(scratchJulianDate);
-                if (JulianDate.lessThan(now, t.expireDate)) {
+                if (JulianDate.lessThan(t.expireDate, now)) {
                     // Request new content
-                    if (t.contentReady && (t.hasContent || t.hasTilesetContent)) {
+                    var state = t.content.state;
+                    var readyToRequest = (state === Cesium3DTileContentState.READY) || (state === Cesium3DTileContentState.EXPIRED);
+                    if (readyToRequest && (t.hasContent || t.hasTilesetContent)) {
+                        console.log('exceeded expirate');
                         t.content.state = Cesium3DTileContentState.EXPIRED;
                         requestContent(tileset, t, outOfCore);
                     }
@@ -1287,23 +1302,25 @@ define([
     function updateTiles(tileset, frameState) {
         tileset._styleEngine.applyStyle(tileset, frameState);
 
-        var commandList = frameState.commandList;
-        var numberOfInitialCommands = commandList.length;
-        var selectedTiles = tileset._selectedTiles;
-        var length = selectedTiles.length;
-        var tileVisible = tileset.tileVisible;
-        for (var i = 0; i < length; ++i) {
-            var tile = selectedTiles[i];
-            if (tile.selected) {
-                // Raise visible event before update in case the visible event
-                // makes changes that update needs to apply to WebGL resources
-                tileVisible.raiseEvent(tile);
-                tile.update(tileset, frameState);
-            }
-        }
+        tileset._root.update(tileset, frameState);
 
-        // Number of commands added by each update above
-        tileset._statistics.numberOfCommands = (commandList.length - numberOfInitialCommands);
+        // var commandList = frameState.commandList;
+        // var numberOfInitialCommands = commandList.length;
+        // var selectedTiles = tileset._selectedTiles;
+        // var length = selectedTiles.length;
+        // var tileVisible = tileset.tileVisible;
+        // for (var i = 0; i < length; ++i) {
+        //     var tile = selectedTiles[i];
+        //     if (tile.selected) {
+        //         // Raise visible event before update in case the visible event
+        //         // makes changes that update needs to apply to WebGL resources
+        //         tileVisible.raiseEvent(tile);
+        //         tile.update(tileset, frameState);
+        //     }
+        // }
+        //
+        // // Number of commands added by each update above
+        // tileset._statistics.numberOfCommands = (commandList.length - numberOfInitialCommands);
     }
 
     function unloadTiles(tileset, frameState) {
@@ -1399,7 +1416,7 @@ define([
         updateTiles(this, frameState);
 
         if (outOfCore) {
-            unloadTiles(this, frameState);
+            //unloadTiles(this, frameState);
         }
 
         // Events are raised (added to the afterRender queue) here since promises

@@ -17,7 +17,7 @@ define([
         Ellipsoid,
         freezeObject,
         CesiumMath) {
-    "use strict";
+    'use strict';
 
     /**
      * A two dimensional region specified as longitude and latitude coordinates.
@@ -102,6 +102,8 @@ define([
      * @param {Rectangle} value The value to pack.
      * @param {Number[]} array The array to pack into.
      * @param {Number} [startingIndex=0] The index into the array at which to start packing the elements.
+     *
+     * @returns {Number[]} The array that was packed into
      */
     Rectangle.pack = function(value, array, startingIndex) {
         //>>includeStart('debug', pragmas.debug);
@@ -120,6 +122,8 @@ define([
         array[startingIndex++] = value.south;
         array[startingIndex++] = value.east;
         array[startingIndex] = value.north;
+
+        return array;
     };
 
     /**
@@ -237,6 +241,63 @@ define([
 
         for ( var i = 0, len = cartographics.length; i < len; i++) {
             var position = cartographics[i];
+            west = Math.min(west, position.longitude);
+            east = Math.max(east, position.longitude);
+            south = Math.min(south, position.latitude);
+            north = Math.max(north, position.latitude);
+
+            var lonAdjusted = position.longitude >= 0 ?  position.longitude : position.longitude +  CesiumMath.TWO_PI;
+            westOverIDL = Math.min(westOverIDL, lonAdjusted);
+            eastOverIDL = Math.max(eastOverIDL, lonAdjusted);
+        }
+
+        if(east - west > eastOverIDL - westOverIDL) {
+            west = westOverIDL;
+            east = eastOverIDL;
+
+            if (east > CesiumMath.PI) {
+                east = east - CesiumMath.TWO_PI;
+            }
+            if (west > CesiumMath.PI) {
+                west = west - CesiumMath.TWO_PI;
+            }
+        }
+
+        if (!defined(result)) {
+            return new Rectangle(west, south, east, north);
+        }
+
+        result.west = west;
+        result.south = south;
+        result.east = east;
+        result.north = north;
+        return result;
+    };
+
+    /**
+     * Creates the smallest possible Rectangle that encloses all positions in the provided array.
+     *
+     * @param {Cartesian[]} cartesians The list of Cartesian instances.
+     * @param {Ellipsoid} [ellipsoid=Ellipsoid.WGS84] The ellipsoid the cartesians are on.
+     * @param {Rectangle} [result] The object onto which to store the result, or undefined if a new instance should be created.
+     * @returns {Rectangle} The modified result parameter or a new Rectangle instance if none was provided.
+     */
+    Rectangle.fromCartesianArray = function(cartesians, ellipsoid, result) {
+        //>>includeStart('debug', pragmas.debug);
+        if (!defined(cartesians)) {
+            throw new DeveloperError('cartesians is required.');
+        }
+        //>>includeEnd('debug');
+
+        var west = Number.MAX_VALUE;
+        var east = -Number.MAX_VALUE;
+        var westOverIDL = Number.MAX_VALUE;
+        var eastOverIDL = -Number.MAX_VALUE;
+        var south = Number.MAX_VALUE;
+        var north = -Number.MAX_VALUE;
+
+        for ( var i = 0, len = cartesians.length; i < len; i++) {
+            var position = ellipsoid.cartesianToCartographic(cartesians[i]);
             west = Math.min(west, position.longitude);
             east = Math.max(east, position.longitude);
             south = Math.min(south, position.latitude);
@@ -592,6 +653,66 @@ define([
         result.south = south;
         result.east = east;
         result.north = north;
+        return result;
+    };
+
+    /**
+     * Computes a rectangle that is the union of two rectangles.
+     *
+     * @param {Rectangle} rectangle A rectangle to enclose in rectangle.
+     * @param {Rectangle} otherRectangle A rectangle to enclose in a rectangle.
+     * @param {Rectangle} [result] The object onto which to store the result.
+     * @returns {Rectangle} The modified result parameter or a new Rectangle instance if none was provided.
+     */
+    Rectangle.union = function(rectangle, otherRectangle, result) {
+        //>>includeStart('debug', pragmas.debug);
+        if (!defined(rectangle)) {
+            throw new DeveloperError('rectangle is required');
+        }
+        if (!defined(otherRectangle)) {
+            throw new DeveloperError('otherRectangle is required.');
+        }
+        //>>includeEnd('debug');
+
+        if (!defined(result)) {
+            result = new Rectangle();
+        }
+
+        result.west = Math.min(rectangle.west, otherRectangle.west);
+        result.south = Math.min(rectangle.south, otherRectangle.south);
+        result.east = Math.max(rectangle.east, otherRectangle.east);
+        result.north = Math.max(rectangle.north, otherRectangle.north);
+
+        return result;
+    };
+
+    /**
+     * Computes a rectangle by enlarging the provided rectangle until it contains the provided cartographic.
+     *
+     * @param {Rectangle} rectangle A rectangle to expand.
+     * @param {Cartographic} cartographic A cartographic to enclose in a rectangle.
+     * @param {Rectangle} [result] The object onto which to store the result.
+     * @returns {Rectangle} The modified result parameter or a new Rectangle instance if one was not provided.
+     */
+    Rectangle.expand = function(rectangle, cartographic, result) {
+        //>>includeStart('debug', pragmas.debug);
+        if (!defined(rectangle)) {
+            throw new DeveloperError('rectangle is required.');
+        }
+        if (!defined(cartographic)) {
+            throw new DeveloperError('cartographic is required.');
+        }
+        //>>includeEnd('debug');
+
+        if (!defined(result)) {
+            result = new Rectangle();
+        }
+
+        result.west = Math.min(rectangle.west, cartographic.longitude);
+        result.south = Math.min(rectangle.south, cartographic.latitude);
+        result.east = Math.max(rectangle.east, cartographic.longitude);
+        result.north = Math.max(rectangle.north, cartographic.latitude);
+
         return result;
     };
 

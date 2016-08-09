@@ -39,7 +39,7 @@ define([
         BingMapsStyle,
         DiscardMissingTileImagePolicy,
         ImageryProvider) {
-    "use strict";
+    'use strict';
 
     /**
      * Provides tiled imagery using the Bing Maps Imagery REST API.
@@ -89,7 +89,7 @@ define([
      *
      * @example
      * var bing = new Cesium.BingMapsImageryProvider({
-     *     url : '//dev.virtualearth.net',
+     *     url : 'https://dev.virtualearth.net',
      *     key : 'get-yours-at-https://www.bingmapsportal.com/',
      *     mapStyle : Cesium.BingMapsStyle.AERIAL
      * });
@@ -107,6 +107,7 @@ define([
         //>>includeEnd('debug');
 
         this._key = BingMapsApi.getKey(options.key);
+        this._keyErrorCredit = BingMapsApi.getErrorCredit(options.key);
 
         this._url = options.url;
         this._tileProtocol = options.tileProtocol;
@@ -509,7 +510,13 @@ define([
         }
 
         var rectangle = this._tilingScheme.tileXYToRectangle(x, y, level, rectangleScratch);
-        return getRectangleAttribution(this._attributionList, level, rectangle);
+        var result = getRectangleAttribution(this._attributionList, level, rectangle);
+
+        if (defined(this._keyErrorCredit)) {
+            result.push(this._keyErrorCredit);
+        }
+
+        return result;
     };
 
     /**

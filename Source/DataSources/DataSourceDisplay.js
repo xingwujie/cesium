@@ -7,6 +7,7 @@ define([
         '../Core/destroyObject',
         '../Core/DeveloperError',
         '../Core/EventHelper',
+        '../Scene/GroundPrimitive',
         './BillboardVisualizer',
         './BoundingSphereState',
         './BoxGeometryUpdater',
@@ -33,6 +34,7 @@ define([
         destroyObject,
         DeveloperError,
         EventHelper,
+        GroundPrimitive,
         BillboardVisualizer,
         BoundingSphereState,
         BoxGeometryUpdater,
@@ -51,7 +53,7 @@ define([
         PolylineVolumeGeometryUpdater,
         RectangleGeometryUpdater,
         WallGeometryUpdater) {
-    "use strict";
+    'use strict';
 
     /**
      * Visualizes a collection of {@link DataSource} instances.
@@ -77,6 +79,8 @@ define([
             throw new DeveloperError('dataSourceCollection is required.');
         }
         //>>includeEnd('debug');
+        
+        GroundPrimitive.initializeTerrainHeights();
 
         var scene = options.scene;
         var dataSourceCollection = options.dataSourceCollection;
@@ -96,6 +100,8 @@ define([
         var defaultDataSource = new CustomDataSource();
         this._onDataSourceAdded(undefined, defaultDataSource);
         this._defaultDataSource = defaultDataSource;
+
+        this._ready = false;
     }
 
     /**
@@ -157,6 +163,18 @@ define([
             get : function() {
                 return this._defaultDataSource;
             }
+        },
+
+        /**
+         * Gets a value indicating whether or not all entities in the data source are ready
+         * @memberof DataSourceDisplay.prototype
+         * @type {Boolean}
+         * @readonly
+         */
+        ready : {
+            get : function() {
+                return this._ready;
+            }
         }
     });
 
@@ -189,7 +207,7 @@ define([
      *
      * @example
      * dataSourceDisplay = dataSourceDisplay.destroy();
-     * 
+     *
      * @see DataSourceDisplay#isDestroyed
      */
     DataSourceDisplay.prototype.destroy = function() {
@@ -217,6 +235,10 @@ define([
         }
         //>>includeEnd('debug');
 
+        if (!GroundPrimitive._initialized) {
+            return false;
+        }
+        
         var result = true;
 
         var i;
@@ -243,6 +265,8 @@ define([
         for (x = 0; x < vLength; x++) {
             result = visualizers[x].update(time) && result;
         }
+
+        this._ready = result;
 
         return result;
     };

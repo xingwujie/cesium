@@ -17,7 +17,7 @@ define([
         getElement,
         TimelineHighlightRange,
         TimelineTrack) {
-    "use strict";
+    'use strict';
 
     var timelineWheelDelta = 1e12;
 
@@ -784,6 +784,7 @@ define([
         this._trackListEle.height = trackListHeight;
         this._makeTics();
 
+        this._lastXPos = undefined;
         this._lastWidth = width;
         this._lastHeight = height;
     };

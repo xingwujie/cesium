@@ -9,12 +9,14 @@ defineSuite([
         'Core/Ellipsoid',
         'Core/Math',
         'Core/NearFarScalar',
+        'Core/Rectangle',
         'Renderer/ContextLimits',
         'Scene/HeightReference',
         'Scene/HorizontalOrigin',
         'Scene/LabelStyle',
         'Scene/OrthographicFrustum',
         'Scene/VerticalOrigin',
+        'Specs/createGlobe',
         'Specs/createScene'
     ], function(
         LabelCollection,
@@ -26,34 +28,32 @@ defineSuite([
         Ellipsoid,
         CesiumMath,
         NearFarScalar,
+        Rectangle,
         ContextLimits,
         HeightReference,
         HorizontalOrigin,
         LabelStyle,
         OrthographicFrustum,
         VerticalOrigin,
+        createGlobe,
         createScene) {
-    "use strict";
+    'use strict';
 
     // TODO: rendering tests for pixel offset, eye offset, horizontal origin, vertical origin, font, style, outlineColor, outlineWidth, and fillColor properties
 
     var scene;
     var camera;
     var labels;
-    var heightReferenceSupported;
     var labelsWithHeight;
 
     beforeAll(function() {
         scene = createScene();
         camera = scene.camera;
-
-        heightReferenceSupported = defined(scene._globeDepth) && scene._globeDepth.supported && ContextLimits.maximumVertexTextureImageUnits > 0;
     });
 
     afterAll(function() {
         scene.destroyForSpecs();
     });
-
     beforeEach(function() {
         scene.morphTo3D(0);
 
@@ -63,13 +63,6 @@ defineSuite([
 
         labels = new LabelCollection();
         scene.primitives.add(labels);
-
-        if (heightReferenceSupported) {
-            labelsWithHeight = new LabelCollection({
-                scene : scene
-            });
-            scene.primitives.add(labelsWithHeight);
-        }
     });
 
     afterEach(function() {
@@ -89,6 +82,7 @@ defineSuite([
         expect(label.style).toEqual(LabelStyle.FILL);
         expect(label.pixelOffset).toEqual(Cartesian2.ZERO);
         expect(label.eyeOffset).toEqual(Cartesian3.ZERO);
+        expect(label.heightReference).toEqual(HeightReference.NONE);
         expect(label.horizontalOrigin).toEqual(HorizontalOrigin.LEFT);
         expect(label.verticalOrigin).toEqual(VerticalOrigin.BOTTOM);
         expect(label.scale).toEqual(1.0);
@@ -799,10 +793,10 @@ defineSuite([
             var label = labels.add({
                 text : 'abc',
                 position : Cartesian3.ZERO,
-                pixelOffset : new Cartesian2(1.0, 2.0)
+                pixelOffset : new Cartesian2(0.5, 0.5)
             });
             scene.renderForSpecs();
-            expect(label.computeScreenSpacePosition(scene)).toEqualEpsilon(new Cartesian2(1.5, 2.5), CesiumMath.EPSILON1);
+            expect(label.computeScreenSpacePosition(scene)).toEqualEpsilon(new Cartesian2(1.0, 1.0), CesiumMath.EPSILON1);
         });
 
         it('can compute screen space position with eyeOffset', function() {
@@ -1447,20 +1441,12 @@ defineSuite([
             text : 'two'
         });
 
-        var maxRadii = ellipsoid.maximumRadius;
-        var orthoFrustum = new OrthographicFrustum();
-        orthoFrustum.right = maxRadii * Math.PI;
-        orthoFrustum.left = -orthoFrustum.right;
-        orthoFrustum.top = orthoFrustum.right;
-        orthoFrustum.bottom = -orthoFrustum.top;
-        orthoFrustum.near = 0.01 * maxRadii;
-        orthoFrustum.far = 60.0 * maxRadii;
+        camera.setView({
+            destination : Rectangle.fromDegrees(-60.0, -60.0, -40.0, 60.0)
+        });
 
-        // Update scene state
         scene.morphTo2D(0);
         scene.renderForSpecs();
-
-        camera.frustum = orthoFrustum;
 
         scene.renderForSpecs();
         var actual = scene.frameState.commandList[0].boundingVolume;
@@ -1638,37 +1624,19 @@ defineSuite([
     });
 
     describe('height referenced labels', function() {
-        function createMockGlobe() {
-            var globe = {
-                callback : undefined,
-                removedCallback : false,
-                ellipsoid : Ellipsoid.WGS84,
-                update : function() {},
-                getHeight : function() {
-                    return 0.0;
-                },
-                _surface : {},
-                destroy : function() {}
-            };
+        beforeEach(function() {
+            scene.globe = createGlobe();
 
-            globe._surface.updateHeight = function(position, callback) {
-                globe.callback = callback;
-                return function() {
-                    globe.removedCallback = true;
-                    globe.callback = undefined;
-                };
-            };
-
-            return globe;
-        }
+            labelsWithHeight = new LabelCollection({
+                scene : scene
+            });
+            scene.primitives.add(labelsWithHeight);
+        });
 
         it('explicitly constructs a label with height reference', function() {
-            if (!heightReferenceSupported) {
-                return;
-            }
-
-            scene.globe = createMockGlobe();
+            scene.globe = createGlobe();
             var l = labelsWithHeight.add({
+                text : "test",
                 heightReference : HeightReference.CLAMP_TO_GROUND
             });
 
@@ -1676,23 +1644,17 @@ defineSuite([
         });
 
         it('set label height reference property', function() {
-            if (!heightReferenceSupported) {
-                return;
-            }
-
-            scene.globe = createMockGlobe();
-            var l = labelsWithHeight.add();
+            scene.globe = createGlobe();
+            var l = labelsWithHeight.add({
+                text : "test"
+            });
             l.heightReference = HeightReference.CLAMP_TO_GROUND;
 
             expect(l.heightReference).toEqual(HeightReference.CLAMP_TO_GROUND);
         });
 
         it('creating with a height reference creates a height update callback', function() {
-            if (!heightReferenceSupported) {
-                return;
-            }
-
-            scene.globe = createMockGlobe();
+            scene.globe = createGlobe();
             labelsWithHeight.add({
                 heightReference : HeightReference.CLAMP_TO_GROUND,
                 position : Cartesian3.fromDegrees(-72.0, 40.0)
@@ -1701,11 +1663,7 @@ defineSuite([
         });
 
         it('set height reference property creates a height update callback', function() {
-            if (!heightReferenceSupported) {
-                return;
-            }
-
-            scene.globe = createMockGlobe();
+            scene.globe = createGlobe();
             var l = labelsWithHeight.add({
                 position : Cartesian3.fromDegrees(-72.0, 40.0)
             });
@@ -1714,11 +1672,7 @@ defineSuite([
         });
 
         it('updates the callback when the height reference changes', function() {
-            if (!heightReferenceSupported) {
-                return;
-            }
-
-            scene.globe = createMockGlobe();
+            scene.globe = createGlobe();
             var l = labelsWithHeight.add({
                 heightReference : HeightReference.CLAMP_TO_GROUND,
                 position : Cartesian3.fromDegrees(-72.0, 40.0)
@@ -1736,11 +1690,7 @@ defineSuite([
         });
 
         it('changing the position updates the callback', function() {
-            if (!heightReferenceSupported) {
-                return;
-            }
-
-            scene.globe = createMockGlobe();
+            scene.globe = createGlobe();
             var l = labelsWithHeight.add({
                 heightReference : HeightReference.CLAMP_TO_GROUND,
                 position : Cartesian3.fromDegrees(-72.0, 40.0)
@@ -1753,11 +1703,7 @@ defineSuite([
         });
 
         it('callback updates the position', function() {
-            if (!heightReferenceSupported) {
-                return;
-            }
-
-            scene.globe = createMockGlobe();
+            scene.globe = createGlobe();
             var l = labelsWithHeight.add({
                 heightReference : HeightReference.CLAMP_TO_GROUND,
                 position : Cartesian3.fromDegrees(-72.0, 40.0)

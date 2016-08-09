@@ -15,6 +15,7 @@ defineSuite([
         'Scene/LabelCollection',
         'Scene/LabelStyle',
         'Scene/VerticalOrigin',
+        'Specs/createGlobe',
         'Specs/createScene'
     ], function(
         LabelVisualizer,
@@ -32,14 +33,16 @@ defineSuite([
         LabelCollection,
         LabelStyle,
         VerticalOrigin,
+        createGlobe,
         createScene) {
-    "use strict";
+    'use strict';
 
     var scene;
     var visualizer;
 
     beforeAll(function() {
         scene = createScene();
+        scene.globe = createGlobe();
     });
 
     afterAll(function() {
@@ -259,6 +262,7 @@ defineSuite([
         entityCollection.removeAll();
         visualizer.update(time);
         expect(l.show).toEqual(false);
+        expect(l.id).toBeUndefined();
     });
 
     it('Visualizer sets entity property.', function() {

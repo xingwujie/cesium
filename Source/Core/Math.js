@@ -9,7 +9,7 @@ define([
         defaultValue,
         defined,
         DeveloperError) {
-    "use strict";
+    'use strict';
 
     /**
      * Math functions.
@@ -218,25 +218,29 @@ define([
     };
 
     /**
-     * Converts a scalar value in the range [-1.0, 1.0] to a 8-bit 2's complement number.
+     * Converts a scalar value in the range [-1.0, 1.0] to a SNORM in the range [0, rangeMax]
      * @param {Number} value The scalar value in the range [-1.0, 1.0]
-     * @returns {Number} The 8-bit 2's complement number, where 0 maps to -1.0 and 255 maps to 1.0.
+     * @param {Number} [rangeMax=255] The maximum value in the mapped range, 255 by default.
+     * @returns {Number} A SNORM value, where 0 maps to -1.0 and rangeMax maps to 1.0.
      *
      * @see CesiumMath.fromSNorm
      */
-    CesiumMath.toSNorm = function(value) {
-        return Math.round((CesiumMath.clamp(value, -1.0, 1.0) * 0.5 + 0.5) * 255.0);
+    CesiumMath.toSNorm = function(value, rangeMax) {
+        rangeMax = defaultValue(rangeMax, 255);
+        return Math.round((CesiumMath.clamp(value, -1.0, 1.0) * 0.5 + 0.5) * rangeMax);
     };
 
     /**
-     * Converts a SNORM value in the range [0, 255] to a scalar in the range [-1.0, 1.0].
+     * Converts a SNORM value in the range [0, rangeMax] to a scalar in the range [-1.0, 1.0].
      * @param {Number} value SNORM value in the range [0, 255]
+     * @param {Number} [rangeMax=255] The maximum value in the SNORM range, 255 by default.
      * @returns {Number} Scalar in the range [-1.0, 1.0].
      *
      * @see CesiumMath.toSNorm
      */
-    CesiumMath.fromSNorm = function(value) {
-        return CesiumMath.clamp(value, 0.0, 255.0) / 255.0 * 2.0 - 1.0;
+    CesiumMath.fromSNorm = function(value, rangeMax) {
+        rangeMax = defaultValue(rangeMax, 255);
+        return CesiumMath.clamp(value, 0.0, rangeMax) / rangeMax * 2.0 - 1.0;
     };
 
     /**
@@ -778,6 +782,25 @@ define([
         }
         //>>includeEnd('debug');
         return 2.0 * radius * Math.sin(angle * 0.5);
+    };
+
+    /**
+     * Finds the logarithm of a number to a base.
+     *
+     * @param {Number} number The number.
+     * @param {Number} base The base.
+     * @returns {Number} The result.
+     */
+    CesiumMath.logBase = function(number, base) {
+        //>>includeStart('debug', pragmas.debug);
+        if (!defined(number)) {
+            throw new DeveloperError('number is required.');
+        }
+        if (!defined(base)) {
+            throw new DeveloperError('base is required.');
+        }
+        //>>includeEnd('debug');
+        return Math.log(number) / Math.log(base);
     };
 
     /**

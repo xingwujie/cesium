@@ -63,7 +63,7 @@ define([
         StripeMaterial,
         WaterMaterial,
         when) {
-    "use strict";
+    'use strict';
 
     /**
      * A Material defines surface appearance through a combination of diffuse, specular,
@@ -500,7 +500,7 @@ define([
      *
      * @example
      * material = material && material.destroy();
-     * 
+     *
      * @see Material#isDestroyed
      */
     Material.prototype.destroy = function() {
@@ -1032,15 +1032,15 @@ define([
             uniforms : {
                 image : Material.DefaultImageId,
                 repeat : new Cartesian2(1.0, 1.0),
-                alpha : 1.0
+                color: new Color(1.0, 1.0, 1.0, 1.0)
             },
             components : {
-                diffuse : 'texture2D(image, fract(repeat * materialInput.st)).rgb',
-                alpha : 'texture2D(image, fract(repeat * materialInput.st)).a * alpha'
+                diffuse : 'texture2D(image, fract(repeat * materialInput.st)).rgb * color.rgb',
+                alpha : 'texture2D(image, fract(repeat * materialInput.st)).a * color.a'
             }
         },
         translucent : function(material) {
-            return material.uniforms.alpha < 1.0;
+            return material.uniforms.color.alpha < 1.0;
         }
     });
 

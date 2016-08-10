@@ -291,7 +291,6 @@ define([
      *     // handle loaded image
      *   });
      * }
-     *
      */
     RequestScheduler.schedule = function(request) {
         //>>includeStart('debug', pragmas.debug);

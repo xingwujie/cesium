@@ -361,7 +361,7 @@ defineSuite([
             scene.renderForSpecs();
             expect(stats.visited).toEqual(0);
             expect(stats.numberOfCommands).toEqual(0);
-            expect(tileset._root.visibility(scene.frameState.cullingVolume)).toEqual(CullingVolume.MASK_OUTSIDE);
+            expect(tileset._root.visibility(scene.frameState.cullingVolume, CullingVolume.MASK_INDETERMINATE)).toEqual(CullingVolume.MASK_OUTSIDE);
         });
     });
 
@@ -514,13 +514,51 @@ defineSuite([
         });
     });
 
-
-    it('replacement refinement - refines to visible ready children', function() {
+    it('replacement refinement - refines to children when refineToVisible is false', function() {
         viewRootOnly();
         return Cesium3DTilesTester.loadTileset(scene, tilesetUrl).then(function(tileset) {
+            tileset._refineToVisible = false;
             var root = tileset._root;
             root.refine = Cesium3DTileRefine.REPLACE;
             root._contentBoundingVolume = undefined; // Easier to test if the root only uses its tile bounding volume
+            var ll = root.children[0];
+            var stats = tileset._statistics;
+
+            // Look at lower-left corner of tileset
+            viewAllTiles();
+            scene.camera.moveLeft(200.0);
+            scene.camera.moveDown(200.0);
+
+            scene.renderForSpecs();
+            expect(stats.visited).toEqual(1); // Visits root only, child tiles aren't ready
+            expect(stats.numberOfCommands).toEqual(1);
+
+            return Cesium3DTilesTester.waitForPendingRequests(scene, tileset).then(function() {
+                // Even though we are only looking at the lower-left tile, all child tiles are loaded
+                scene.renderForSpecs();
+                expect(stats.visited).toEqual(2); // Only visible tiles are visited - root and ll
+                expect(stats.numberContentReady).toEqual(5); // All tiles are loaded
+                expect(stats.numberOfCommands).toEqual(1); // Root is replaced, but only ll is visible
+                expect(tileset._selectedTiles[0]).toEqual(ll);
+
+                // Now look at all tiles
+                viewAllTiles();
+                scene.renderForSpecs();
+                expect(stats.visited).toEqual(5); // All tiles are visited
+                expect(stats.numberContentReady).toEqual(5); // All tiles are loaded
+                expect(stats.numberOfCommands).toEqual(4); // Root is replaced by its 4 children
+            });
+        });
+    });
+
+    it('replacement refinement - refines to visible ready children when refineToVisible is true', function() {
+        viewRootOnly();
+        return Cesium3DTilesTester.loadTileset(scene, tilesetUrl).then(function(tileset) {
+            tileset._refineToVisible = true;
+            var root = tileset._root;
+            root.refine = Cesium3DTileRefine.REPLACE;
+            root._contentBoundingVolume = undefined; // Easier to test if the root only uses its tile bounding volume
+            var ll = root.children[0];
             var stats = tileset._statistics;
 
             // Look at lower-left corner of tileset
@@ -536,6 +574,7 @@ defineSuite([
                 scene.renderForSpecs();
                 expect(stats.visited).toEqual(2); // Visits root and ll
                 expect(stats.numberOfCommands).toEqual(1); // ll is the only visible child and is ready, so it replaces root
+                expect(tileset._selectedTiles[0]).toBe(ll);
 
                 viewAllTiles();
                 scene.renderForSpecs();
@@ -739,12 +778,18 @@ defineSuite([
             var stats = tileset._statistics;
             expect(stats.visited).toEqual(1);
             expect(stats.numberOfCommands).toEqual(1);
+            expect(tileset._debugCameraFrustum).toBeUndefined();
 
             tileset.debugFreezeFrame = true;
             viewAllTiles();
             scene.renderForSpecs();
             expect(stats.visited).toEqual(0); // selectTiles returns early, so no tiles are visited
             expect(stats.numberOfCommands).toEqual(1); // root tile is still in selectedTiles list
+            expect(tileset._debugCameraFrustum).toBeDefined();
+
+            tileset.debugFreezeFrame = false;
+            scene.renderForSpecs();
+            expect(tileset._debugCameraFrustum).toBeUndefined();
         });
     });
 
@@ -886,7 +931,7 @@ defineSuite([
             var spyUpdate = jasmine.createSpy('listener');
             tileset.tileVisible.addEventListener(spyUpdate);
             scene.renderForSpecs();
-            expect(tileset._root.visibility(scene.frameState.cullingVolume)).not.toEqual(CullingVolume.MASK_OUTSIDE);
+            expect(tileset._root.visibility(scene.frameState.cullingVolume, CullingVolume.MASK_INDETERMINATE)).not.toEqual(CullingVolume.MASK_OUTSIDE);
             expect(spyUpdate.calls.count()).toEqual(1);
             expect(spyUpdate.calls.argsFor(0)[0]).toBe(tileset._root);
         });
@@ -1447,7 +1492,7 @@ defineSuite([
             tileset.tileUnload.addEventListener(spyUpdate);
             scene.renderForSpecs();
 
-            expect(tileset._root.visibility(scene.frameState.cullingVolume)).not.toEqual(CullingVolume.MASK_OUTSIDE);
+            expect(tileset._root.visibility(scene.frameState.cullingVolume, CullingVolume.MASK_INDETERMINATE)).not.toEqual(CullingVolume.MASK_OUTSIDE);
             expect(spyUpdate.calls.count()).toEqual(4);
             expect(spyUpdate.calls.argsFor(0)[0]).toBe(tileset._root.children[0]);
             expect(spyUpdate.calls.argsFor(1)[0]).toBe(tileset._root.children[1]);
@@ -1477,6 +1522,7 @@ defineSuite([
     it('propagates tile transform down the tree', function() {
         return Cesium3DTilesTester.loadTileset(scene, tilesetWithTransformsUrl).then(function(tileset) {
             scene.renderForSpecs();
+            var stats = tileset._statistics;
             var root = tileset._root;
             var rootTransform = Matrix4.unpack(root._header.transform);
 
@@ -1484,7 +1530,7 @@ defineSuite([
             var childTransform = Matrix4.unpack(child._header.transform);
             var computedTransform = Matrix4.multiply(rootTransform, childTransform, new Matrix4());
 
-            expect(tileset._selectedTiles.length).toBe(2);
+            expect(stats.numberOfCommands).toBe(2);
             expect(root.computedTransform).toEqual(rootTransform);
             expect(child.computedTransform).toEqual(computedTransform);
 
@@ -1494,6 +1540,24 @@ defineSuite([
             computedTransform = Matrix4.multiply(tilesetTransform, computedTransform, computedTransform);
             scene.renderForSpecs();
             expect(child.computedTransform).toEqual(computedTransform);
+
+            // Set the modelMatrix somewhere off screen
+            tileset.modelMatrix = Matrix4.fromTranslation(new Cartesian3(0.0, 100000.0, 0.0));
+            scene.renderForSpecs();
+            expect(stats.numberOfCommands).toBe(0);
+
+            // Now bring it back
+            tileset.modelMatrix = Matrix4.IDENTITY;
+            scene.renderForSpecs();
+            expect(stats.numberOfCommands).toBe(2);
+
+            // Do the same steps for a tile transform
+            child.transform = Matrix4.fromTranslation(new Cartesian3(0.0, 100000.0, 0.0));
+            scene.renderForSpecs();
+            expect(stats.numberOfCommands).toBe(1);
+            child.transform = Matrix4.IDENTITY;
+            scene.renderForSpecs();
+            expect(stats.numberOfCommands).toBe(2);
         });
     });
 

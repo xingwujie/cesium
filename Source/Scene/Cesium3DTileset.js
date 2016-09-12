@@ -1,5 +1,6 @@
 /*global define*/
 define([
+        '../Core/Color',
         '../Core/defaultValue',
         '../Core/defined',
         '../Core/defineProperties',
@@ -26,8 +27,10 @@ define([
         './Cesium3DTileRefine',
         './Cesium3DTileStyleEngine',
         './CullingVolume',
+        './DebugCameraPrimitive',
         './SceneMode'
     ], function(
+        Color,
         defaultValue,
         defined,
         defineProperties,
@@ -54,6 +57,7 @@ define([
         Cesium3DTileRefine,
         Cesium3DTileStyleEngine,
         CullingVolume,
+        DebugCameraPrimitive,
         SceneMode) {
     'use strict';
 
@@ -69,6 +73,7 @@ define([
      * @param {Boolean} [options.show=true] Determines if the tileset will be shown.
      * @param {Matrix4} [options.modelMatrix=Matrix4.IDENTITY] A 4x4 transformation matrix that transforms the tileset's root tile.
      * @param {Number} [options.maximumScreenSpaceError=16] The maximum screen-space error used to drive level-of-detail refinement.
+     * @param {Boolean} [options.refineToVisible=false] Whether replacement refinement should refine when all visible children are ready. An experimental optimization.
      * @param {Boolean} [options.debugShowStatistics=false] For debugging only. Determines if rendering statistics are output to the console.
      * @param {Boolean} [options.debugShowPickStatistics=false] For debugging only. Determines if rendering statistics for picking are output to the console.
      * @param {Boolean} [options.debugFreezeFrame=false] For debugging only. Determines if only the tiles from last frame should be used for rendering.
@@ -127,6 +132,8 @@ define([
         this._replacementSentinel  = replacementList.add();
         this._trimTiles = false;
 
+        this._refineToVisible = defaultValue(options.refineToVisible, false);
+
         /**
          * Determines if the tileset will be shown.
          *
@@ -139,13 +146,7 @@ define([
         this._maximumNumberOfLoadedTiles = defaultValue(options.maximumNumberOfLoadedTiles, 256);
         this._styleEngine = new Cesium3DTileStyleEngine();
 
-        /**
-         * A 4x4 transformation matrix that transforms the tileset's root tile.
-         *
-         * @type {Matrix4}
-         * @default Matrix4.IDENTITY
-         */
-        this.modelMatrix = defined(options.modelMatrix) ? options.modelMatrix : Matrix4.clone(Matrix4.IDENTITY);
+        this._modelMatrix = defined(options.modelMatrix) ? Matrix4.clone(options.modelMatrix) : Matrix4.clone(Matrix4.IDENTITY);
 
         /**
          * This property is for debugging only; it is not optimized for production use.
@@ -200,6 +201,8 @@ define([
          * @default false
          */
         this.debugFreezeFrame = defaultValue(options.debugFreezeFrame, false);
+        this._debugFreezeFrame = this.debugFreezeFrame;
+        this._debugCameraFrustum = undefined;
 
         /**
          * This property is for debugging only; it is not optimized for production use.
@@ -631,6 +634,26 @@ define([
         },
 
         /**
+         * A 4x4 transformation matrix that transforms the tileset's root tile.
+         *
+         * @type {Matrix4}
+         * @default Matrix4.IDENTITY
+         */
+        modelMatrix : {
+            get : function() {
+                return this._modelMatrix;
+            },
+            set : function(value) {
+                this._modelMatrix = Matrix4.clone(value, this._modelMatrix);
+                if (defined(this._root)) {
+                    // Update the root transform right away instead of waiting for the next update loop.
+                    // Useful, for example, when setting the modelMatrix and then having the camera view the tileset.
+                    this._root.updateTransform(this._modelMatrix);
+                }
+            }
+        },
+
+        /**
          * @private
          */
         styleEngine : {
@@ -792,6 +815,14 @@ define([
         }
     }
 
+    function updateTransforms(children, parentTransform) {
+        var length = children.length;
+        for (var i = 0; i < length; ++i) {
+            var child = children[i];
+            child.updateTransform(parentTransform);
+        }
+    }
+
     // PERFORMANCE_IDEA: is it worth exploiting frame-to-frame coherence in the sort, i.e., the
     // list of children are probably fully or mostly sorted unless the camera moved significantly?
     function sortChildrenByDistanceToCamera(a, b) {
@@ -800,6 +831,10 @@ define([
     }
 
     ///////////////////////////////////////////////////////////////////////////
+
+    function isVisible(visibilityPlaneMask) {
+        return visibilityPlaneMask !== CullingVolume.MASK_OUTSIDE;
+    }
 
     function requestContent(tileset, tile, outOfCore) {
         if (!outOfCore) {
@@ -875,16 +910,16 @@ define([
         replacementList.splice(replacementList.tail, tileset._replacementSentinel);
 
         var root = tileset._root;
+        root.updateTransform(tileset._modelMatrix);
         root.distanceToCamera = root.distanceToTile(frameState);
-        root.parentPlaneMask = CullingVolume.MASK_INDETERMINATE;
 
         if (getScreenSpaceError(tileset._geometricError, root, frameState) <= maximumScreenSpaceError) {
             // The SSE of not rendering the tree is small enough that the tree does not need to be rendered
             return;
         }
 
-        root.planeMask = root.visibility(cullingVolume);
-        if (root.planeMask === CullingVolume.MASK_OUTSIDE) {
+        root.visibilityPlaneMask = root.visibility(cullingVolume, CullingVolume.MASK_INDETERMINATE);
+        if (root.visibilityPlaneMask === CullingVolume.MASK_OUTSIDE) {
             return;
         }
 
@@ -904,11 +939,8 @@ define([
             t.replaced = false;
             ++stats.visited;
 
-            var parentTransform = defined(t.parent) ? t.parent.computedTransform : tileset.modelMatrix;
-            t.computedTransform = Matrix4.multiply(parentTransform, t.transform, t.computedTransform);
-
-            var planeMask = t.planeMask;
-            var fullyVisible = (planeMask === CullingVolume.MASK_INSIDE);
+            var visibilityPlaneMask = t.visibilityPlaneMask;
+            var fullyVisible = (visibilityPlaneMask === CullingVolume.MASK_INSIDE);
 
             touch(tileset, t, outOfCore);
 
@@ -928,9 +960,9 @@ define([
                 // and geometric error are equal to its parent.
                 if (t.contentReady) {
                     child = t.children[0];
-                    child.parentPlaneMask = t.parentPlaneMask;
-                    child.planeMask = t.planeMask;
+                    child.visibilityPlaneMask = t.visibilityPlaneMask;
                     child.distanceToCamera = t.distanceToCamera;
+                    child.updateTransform(t.computedTransform);
                     if (child.contentUnloaded) {
                         requestContent(tileset, child, outOfCore);
                     } else {
@@ -952,6 +984,8 @@ define([
                     // children are loaded or request slots are available.
                     var anyChildrenLoaded = (t.numberOfChildrenWithoutContent < childrenLength);
                     if (anyChildrenLoaded || t.canRequestContent()) {
+                        updateTransforms(children, t.computedTransform);
+
                         // Distance is used for sorting now and for computing SSE when the tile comes off the stack.
                         computeDistanceToCamera(children, frameState);
 
@@ -963,11 +997,8 @@ define([
                             child = children[k];
                             // Use parent's geometric error with child's box to see if we already meet the SSE
                             if (getScreenSpaceError(t.geometricError, child, frameState) > maximumScreenSpaceError) {
-                                // Store the plane mask so that the child can optimize based on its parent's returned mask
-                                child.parentPlaneMask = planeMask;
-                                child.planeMask = child.visibility(cullingVolume);
-                                // If the child is visible...
-                                if (child.planeMask !== CullingVolume.MASK_OUTSIDE) {
+                                child.visibilityPlaneMask = child.visibility(cullingVolume, visibilityPlaneMask);
+                                if (isVisible(child.visibilityPlaneMask)) {
                                     if (child.contentUnloaded) {
                                         requestContent(tileset, child, outOfCore);
                                     } else {
@@ -989,18 +1020,76 @@ define([
                     // This tile meets the SSE so add its commands.
                     // Select tile if it's a leaf (childrenLength === 0)
                     selectTile(tileset, t, fullyVisible, frameState);
+                } else if (!tileset._refineToVisible) {
+                    // Tile does not meet SSE.
+                    // Refine when all children (visible or not) are loaded.
+
+                    // Only sort children by distance if we are going to refine to them
+                    // or slots are available to request them.  If we are just rendering the
+                    // tile (and can't make child requests because no slots are available)
+                    // then the children do not need to be sorted.
+
+                    var allChildrenLoaded = t.numberOfChildrenWithoutContent === 0;
+                    if (allChildrenLoaded || t.canRequestContent()) {
+                        updateTransforms(children, t.computedTransform);
+
+                        // Distance is used for sorting now and for computing SSE when the tile comes off the stack.
+                        computeDistanceToCamera(children, frameState);
+
+                        // Sort children by distance for (1) request ordering, and (2) early-z
+                        children.sort(sortChildrenByDistanceToCamera);
+                    }
+
+                    if (!allChildrenLoaded) {
+                        // Tile does not meet SSE.  Add its commands since it is the best we have and request its children.
+                        selectTile(tileset, t, fullyVisible, frameState);
+
+                        if (outOfCore) {
+                            for (k = 0; (k < childrenLength) && t.canRequestContent(); ++k) {
+                                child = children[k];
+                                // PERFORMANCE_IDEA: we could spin a bit less CPU here by keeping separate lists for unloaded/ready children.
+                                if (child.contentUnloaded) {
+                                    requestContent(tileset, child, outOfCore);
+                                } else {
+                                    // Touch loaded child even though it is not selected this frame since
+                                    // we want to keep it in the cache for when all children are loaded
+                                    // and this tile can refine to them.
+                                    touch(tileset, child, outOfCore);
+                                }
+                            }
+                        }
+                    } else {
+                        // Tile does not meet SSE and its children are loaded.  Refine to them in front-to-back order.
+                        for (k = 0; k < childrenLength; ++k) {
+                            child = children[k];
+                            child.visibilityPlaneMask = child.visibility(frameState.cullingVolume, visibilityPlaneMask);
+                            if (isVisible(child.visibilityPlaneMask)) {
+                                stack.push(child);
+                            } else {
+                                // Touch the child tile even if it is not visible. Since replacement refinement
+                                // requires all child tiles to be loaded to refine to them, we want to keep it in the cache.
+                                touch(tileset, child, outOfCore);
+                            }
+                        }
+
+                        t.replaced = true;
+                        if (defined(t.descendantsWithContent)) {
+                            scratchRefiningTiles.push(t);
+                        }
+                    }
                 } else {
                     // Tile does not meet SSE.
+                    // Refine when all visible children are loaded.
 
                     // Get visibility for all children. Check if any visible children are not loaded.
+                    // PERFORMANCE_IDEA: exploit temporal coherence to avoid checking visibility every frame
                     var allVisibleChildrenLoaded = true;
                     var someVisibleChildrenLoaded = false;
                     for (k = 0; k < childrenLength; ++k) {
                         child = children[k];
-                        child.parentPlaneMask = planeMask;
-                        child.planeMask = child.visibility(frameState.cullingVolume);
-                        // If the child is visible...
-                        if (child.planeMask !== CullingVolume.MASK_OUTSIDE) {
+                        child.updateTransform(t.computedTransform);
+                        child.visibilityPlaneMask = child.visibility(frameState.cullingVolume, visibilityPlaneMask);
+                        if (isVisible(child.visibilityPlaneMask)) {
                             if (child.contentReady) {
                                 someVisibleChildrenLoaded = true;
                             } else {
@@ -1023,15 +1112,18 @@ define([
                     }
 
                     if (!allVisibleChildrenLoaded) {
-                        // Tile does not meet SSE.  Add its commands and the commands of its visible children.
-                        // This will cause the parent tile and child tiles to render simultaneously until
-                        // all visible children are loaded.
+                        // TODO : render parent against a plane mask of its visible children so there is no overlap,
+                        //        then the refineToVisible flags can be removed.
+
+                        // Tile does not meet SSE.  Add its commands and push its visible children to the stack.
+                        // The parent tile and child tiles will render simultaneously until all visible children
+                        // are ready. This allows the visible children to stay loaded while other children stream in,
+                        // otherwise if only the parent is selected the subtree may be unloaded from the cache.
                         selectTile(tileset, t, fullyVisible, frameState);
 
                         for (k = 0; k < childrenLength; ++k) {
                             child = children[k];
-                            // If child is visible...
-                            if (child.planeMask !== CullingVolume.MASK_OUTSIDE) {
+                            if (isVisible(child.visibilityPlaneMask)) {
                                 if (child.contentUnloaded) {
                                     requestContent(tileset, child, outOfCore);
                                 } else {
@@ -1043,7 +1135,7 @@ define([
                         // Tile does not meet SSE and its visible children are loaded. Refine to them in front-to-back order.
                         for (k = 0; k < childrenLength; ++k) {
                             child = children[k];
-                            if (child.planeMask !== CullingVolume.MASK_OUTSIDE) {
+                            if (isVisible(child.visibilityPlaneMask)) {
                                 stack.push(child);
                             }
                         }
@@ -1076,7 +1168,7 @@ define([
             for (j = 0; j < descendantsLength; ++j) {
                 descendant = refiningTile.descendantsWithContent[j];
                 if (!descendant.selected && !descendant.replaced &&
-                    (descendant.contentsVisibility(frameState.cullingVolume) !== Intersect.OUTSIDE)) {
+                    (frameState.cullingVolume.computeVisibility(descendant.contentBoundingVolume) !== Intersect.OUTSIDE)) {
                         refinable = false;
                         break;
                 }
@@ -1295,6 +1387,29 @@ define([
 
     ///////////////////////////////////////////////////////////////////////////
 
+    function applyDebugSettings(tileset, frameState) {
+        // Draw a debug camera in freeze frame mode
+        var enterFreezeFrame = tileset.debugFreezeFrame && !tileset._debugFreezeFrame;
+        var exitFreezeFrame = !tileset.debugFreezeFrame && tileset._debugFreezeFrame;
+        tileset._debugFreezeFrame = tileset.debugFreezeFrame;
+        if (tileset.debugFreezeFrame) {
+            if (enterFreezeFrame) {
+                // Recreate debug camera when entering freeze frame mode
+                tileset._debugCameraFrustum = tileset._debugCameraFrustum && tileset._debugCameraFrustum.destroy();
+                tileset._debugCameraFrustum = new DebugCameraPrimitive({
+                    camera : frameState.camera,
+                    updateOnChange : false
+                });
+            }
+            tileset._debugCameraFrustum.update(frameState);
+        } else if (exitFreezeFrame) {
+            // Destroy debug camera when exiting freeze frame
+            tileset._debugCameraFrustum = tileset._debugCameraFrustum && tileset._debugCameraFrustum.destroy();
+        }
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+
     /**
      * Called when {@link Viewer} or {@link CesiumWidget} render the scene to
      * get the draw commands needed to render this primitive.
@@ -1316,6 +1431,8 @@ define([
         var passes = frameState.passes;
         var isPick = (passes.pick && !passes.render);
         var outOfCore = !isPick;
+
+        applyDebugSettings(this, frameState);
 
         clearStats(this);
 
@@ -1389,6 +1506,7 @@ define([
         }
 
         this._root = undefined;
+        this._debugCameraFrustum = this._debugCameraFrustum && this._debugCameraFrustum.destroy();
         return destroyObject(this);
     };
 

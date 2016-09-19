@@ -843,8 +843,11 @@ define([
     var scratchCartographic = new Cartographic();
     var scratchPosition = new Cartesian3();
 
+    var counter = 0;
     Billboard._updateClamping = function(collection, owner) {
         var scene = collection._scene;
+        var thisCounter = counter++;
+        this._myCounter = thisCounter;
         if (!defined(scene)) {
             //>>includeStart('debug', pragmas.debug);
             if (owner._heightReference !== HeightReference.NONE) {
@@ -882,7 +885,12 @@ define([
             owner._removeCallbackFunc();
         }
 
+        var that = this;
         function updateFunction(clampedPosition) {
+            if (thisCounter !== that._myCounter) {
+                console.log('Race condition!');
+                return;
+            }
             if (owner._heightReference === HeightReference.RELATIVE_TO_GROUND) {
                 if (owner._mode === SceneMode.SCENE3D) {
                     var clampedCart = ellipsoid.cartesianToCartographic(clampedPosition, scratchCartographic);

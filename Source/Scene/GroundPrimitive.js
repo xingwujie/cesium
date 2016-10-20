@@ -806,7 +806,7 @@ define([
             command.renderState = groundPrimitive._rsStencilPreloadPass;
             command.shaderProgram = groundPrimitive._sp;
             command.uniformMap = uniformMap;
-            command.pass = Pass.GROUND;
+            command.pass = Pass.TRANSLUCENT;//Pass.GROUND;
 
             // stencil depth command
             command = colorCommands[i + 1];
@@ -821,7 +821,7 @@ define([
             command.renderState = groundPrimitive._rsStencilDepthPass;
             command.shaderProgram = groundPrimitive._sp;
             command.uniformMap = uniformMap;
-            command.pass = Pass.GROUND;
+            command.pass = Pass.TRANSLUCENT;//Pass.GROUND;
 
             // color command
             command = colorCommands[i + 2];
@@ -836,7 +836,7 @@ define([
             command.renderState = groundPrimitive._rsColorPass;
             command.shaderProgram = groundPrimitive._sp;
             command.uniformMap = uniformMap;
-            command.pass = Pass.GROUND;
+            command.pass = Pass.TRANSLUCENT;//Pass.GROUND;
         }
     }
 

@@ -74,7 +74,46 @@ function loadTileset(url) {
         debugShowStatistics : true
 //        , maximumNumberOfLoadedTiles : 3
 //       , refineToVisible : true
-    }));
+}));
+
+scene.globe.depthTestAgainstTerrain = true;
+
+var minLon = -1.3197190069941716;
+var maxLon = -1.3196399825465384;
+
+var minLat = 0.6988468038519597;
+var maxLat = 0.6989046685398855;
+
+var bl = new Cesium.Cartographic(minLon, minLat);
+var width = maxLon - minLon;
+var height = maxLat - minLat;
+
+var qw = width * 0.25;
+var qh = height * 0.25;
+var lon = bl.longitude;
+var lat = bl.latitude + qh;
+
+var positions = [new Cesium.Cartographic(lon + qw, lat + qh),
+                 new Cesium.Cartographic(lon + qw * 2.0, lat + qh),
+                 new Cesium.Cartographic(lon + qw * 2.0, lat + qh * 2.0),
+                 new Cesium.Cartographic(lon + qw, lat + qh * 2.0)];
+
+//var positions = [new Cesium.Cartographic(minLon, minLat), new Cesium.Cartographic(maxLon, minLat),
+//                 new Cesium.Cartographic(maxLon, maxLat), new Cesium.Cartographic(minLon, maxLat)];
+positions = Cesium.Ellipsoid.WGS84.cartographicArrayToCartesianArray(positions);
+
+var color = Cesium.Color.CYAN.withAlpha(0.5);
+
+scene.primitives.add(new Cesium.GroundPrimitive({
+    geometryInstances : new Cesium.GeometryInstance({
+        geometry : new Cesium.PolygonGeometry({
+            polygonHierarchy : { positions : positions }
+        }),
+        attributes: {
+            color: Cesium.ColorGeometryInstanceAttribute.fromColor(color)
+        },
+    })
+}));
 
     return tileset.readyPromise.then(function(tileset) {
         var boundingSphere = tileset.boundingSphere;

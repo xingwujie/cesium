@@ -239,8 +239,11 @@ define([
         this._maxHeight = undefined;
         this._minHeight = undefined;
 
-        this._maxTerrainHeight = GroundPrimitive._defaultMaxTerrainHeight;
-        this._minTerrainHeight = GroundPrimitive._defaultMinTerrainHeight;
+        //this._maxTerrainHeight = GroundPrimitive._defaultMaxTerrainHeight;
+        //this._minTerrainHeight = GroundPrimitive._defaultMinTerrainHeight;
+
+	this._maxTerrainHeight = defaultValue(options.maximumHeight, GroundPrimitive._defaultMaxTerrainHeight);
+	this._minTerrainHeight = defaultValue(options.minimumHeight, GroundPrimitive._defaultMinTerrainHeight);
 
         this._boundingSpheresKeys = [];
         this._boundingSpheres = [];
@@ -417,9 +420,10 @@ define([
 
     function getComputeMaximumHeightFunction(primitive) {
         return function(granularity, ellipsoid) {
-            var r = ellipsoid.maximumRadius;
-            var delta = (r / Math.cos(granularity * 0.5)) - r;
-            return primitive._maxHeight + delta;
+            //var r = ellipsoid.maximumRadius;
+            //var delta = (r / Math.cos(granularity * 0.5)) - r;
+            //return primitive._maxHeight + delta;
+	    return primitive._maxHeight;
         };
     }
 
@@ -648,6 +652,10 @@ define([
         // Get the terrain min/max for that tile
         var minTerrainHeight = GroundPrimitive._defaultMinTerrainHeight;
         var maxTerrainHeight = GroundPrimitive._defaultMaxTerrainHeight;
+	if (primitive._maxTerrainHeight !== maxTerrainHeight || primitive._minTerrainHeight !== minTerrainHeight) {
+	    return;
+	}
+	
         if (defined(xyLevel)) {
             var key = xyLevel.level + '-' + xyLevel.x + '-' + xyLevel.y;
             var heights = GroundPrimitive._terrainHeights[key];

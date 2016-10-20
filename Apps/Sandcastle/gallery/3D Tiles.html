@@ -112,7 +112,9 @@ scene.primitives.add(new Cesium.GroundPrimitive({
         attributes: {
             color: Cesium.ColorGeometryInstanceAttribute.fromColor(color)
         },
-    })
+}),
+minimumHeight : 50.0,
+maximumHeight : 60.0
 }));
 
     return tileset.readyPromise.then(function(tileset) {

@@ -1717,6 +1717,8 @@ define([
         return shader;
     }
 
+    function modify
+
     function modifyShader(shader, programName, callback) {
         if (defined(callback)) {
             shader = callback(shader, programName);
@@ -1724,8 +1726,13 @@ define([
         return shader;
     }
 
+    function hasPremultipliedAlpha(model) {
+        return defined(gltf.asset) ? defaultValue(gltf.asset.premultipliedAlpha, false) : false;
+    }
+
     function createProgram(id, model, context) {
-        var programs = model.gltf.programs;
+        var gltf = model.gltf;
+        var programs = gltf.programs;
         var shaders = model._loadResources.shaders;
         var program = programs[id];
 
@@ -1746,6 +1753,10 @@ define([
 
         if (usesExtension(model, 'WEB3D_quantized_attributes')) {
             vs = modifyShaderForQuantizedAttributes(vs, id, model, context);
+        }
+
+        if (hasPremultipliedAlpha(mode)) {
+            fs = modifyShaderForPremultipliedAlpha(fs);
         }
 
         var drawVS = modifyShader(vs, id, model._vertexShaderLoaded);
